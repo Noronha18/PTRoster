@@ -362,3 +362,33 @@ async def test_feed_isolado_por_trainer_e_fechado_ao_aluno(ac: AsyncClient, como
 @pytest.mark.anyio
 async def test_patch_de_carga_foi_removido(ac: AsyncClient):
     assert (await ac.patch("/prescricoes/1/carga", json={"carga": "20"})).status_code in (404, 405)
+
+
+@pytest.mark.anyio
+async def test_execucao_reaproveita_checkin_do_mesmo_dia(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    checkin = (await ac.post("/sessoes/", json={"aluno_id": aluno_id, "realizada": True})).json()
+
+    sessao = await _execucao(ac, treino, [40])
+
+    assert sessao["id"] == checkin["id"]
+    sessoes = (await ac.get("/sessoes/", params={"aluno_id": aluno_id})).json()
+    assert len(sessoes) == 1
+    assert sessoes[0]["treino_id"] == treino["id"]
+
+
+@pytest.mark.anyio
+async def test_checkin_e_execucao_do_trainer_debitam_uma_vez(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac, tipo_pagamento="pacote", saldo_aulas=5)
+    assert (await ac.post("/sessoes/", json={"aluno_id": aluno_id, "realizada": True})).status_code == 201
+    await _execucao(ac, treino, [40], aluno_id=aluno_id)
+    assert (await ac.get(f"/alunos/{aluno_id}")).json()["saldo_aulas"] == 4
+
+
+@pytest.mark.anyio
+async def test_execucao_de_outro_dia_nao_reaproveita_checkin(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    await ac.post("/sessoes/", json={"aluno_id": aluno_id, "realizada": True, "data_hora": "2026-10-05T10:00:00"})
+    await _execucao(ac, treino, [40], aluno_id=aluno_id, data_hora="2026-10-06T10:00:00")
+    assert len((await ac.get("/sessoes/", params={"aluno_id": aluno_id})).json()) == 2

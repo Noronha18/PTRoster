@@ -545,12 +545,7 @@ async def registrar_sessao(
             raise exceptions.BusinessRuleError("Plano de treino inválido para este aluno")
         
 
-    if payload.data_hora:
-        # Se vier com timezone, converte para naive (remove info de fuso)
-        # É seguro assumir que o front mandou UTC ou Local correto
-        data_final = payload.data_hora.replace(tzinfo=None)
-    else:
-        data_final = datetime.now() # datetime.now() já é naive por padrão
+    data_final = _hora_brasilia(payload.data_hora)
 
     dados_sessao = payload.model_dump(exclude={"data_hora"}, exclude_unset=True)
 
@@ -650,19 +645,36 @@ async def registrar_execucao(
     # Valida tudo antes de gravar: série inválida não deixa sessão pela metade
     await _validar_series(db, payload.series, treino.id)
 
-    sessao = models.SessaoTreino(
-        aluno_id=aluno.id,
-        plano_treino_id=treino.plano_id,
-        treino_id=treino.id,
-        data_hora=_hora_brasilia(payload.data_hora),
-        realizada=True,
-        observacoes_performance=payload.observacoes_performance,
-        registrado_por=registrado_por,
-        series=[models.RegistroSerie(**s.model_dump()) for s in payload.series],
+    data_hora = _hora_brasilia(payload.data_hora)
+    inicio_dia = datetime.combine(data_hora.date(), datetime.min.time())
+    # Check-in do mesmo dia sem séries vira esta execução: um treino conta uma sessão só
+    sessao = await db.scalar(
+        select(models.SessaoTreino)
+        .options(selectinload(models.SessaoTreino.series))
+        .where(
+            models.SessaoTreino.aluno_id == aluno.id,
+            models.SessaoTreino.realizada.is_(True),
+            models.SessaoTreino.data_hora >= inicio_dia,
+            models.SessaoTreino.data_hora < inicio_dia + timedelta(days=1),
+            ~models.SessaoTreino.series.any(),
+        )
+        .order_by(models.SessaoTreino.data_hora.desc())
+        .limit(1)
     )
+    # Check-in do trainer já debitou a aula
+    ja_debitada = sessao is not None and sessao.registrado_por == "trainer"
+    if sessao is None:
+        sessao = models.SessaoTreino(aluno_id=aluno.id, data_hora=data_hora, realizada=True)
+        db.add(sessao)
+    if not ja_debitada:
+        sessao.registrado_por = registrado_por
+    sessao.plano_treino_id = treino.plano_id
+    sessao.treino_id = treino.id
+    sessao.observacoes_performance = payload.observacoes_performance or sessao.observacoes_performance
+    sessao.series = [models.RegistroSerie(**s.model_dump()) for s in payload.series]
+
     # Regra atual: só o registro feito pelo trainer debita saldo
-    aviso = await _debitar_aula(db, aluno) if registrado_por == "trainer" else None
-    db.add(sessao)
+    aviso = await _debitar_aula(db, aluno) if registrado_por == "trainer" and not ja_debitada else None
     await db.commit()
 
     sessao = await _carregar_execucao(db, sessao.id)

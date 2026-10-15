@@ -137,7 +137,7 @@ class EstatisticasFinanceirasPublic(BaseModel):
 class SessaoTreinoCreate(BaseModel):
     aluno_id: int
     plano_treino_id: Optional[int] = None
-    data_hora: datetime = Field(default_factory=datetime.now)
+    data_hora: Optional[datetime] = None  # sem data: agora, no horário de Brasília
     realizada: bool = True
     precisa_reposicao: bool = False
     observacoes_performance: Optional[str] = None
