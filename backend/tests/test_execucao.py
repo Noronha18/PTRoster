@@ -219,3 +219,42 @@ async def test_aluno_exclui_propria_sessao_e_trainer_edita_qualquer(ac: AsyncCli
 
     como_usuario(TRAINER_B)
     assert (await ac.put(f"/sessoes/{s2['id']}/series", json={"series": _series(treino["prescricoes"][0], [1])})).status_code == 404
+
+
+@pytest.mark.anyio
+async def test_ultima_execucao_retorna_a_sessao_mais_recente(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    await _execucao(ac, treino, [40, 40], aluno_id=aluno_id, data_hora="2026-10-05T10:00:00")
+    await _execucao(ac, treino, [45, 42.5, 42.5], aluno_id=aluno_id, data_hora="2026-10-12T10:00:00")
+
+    res = await ac.get(f"/alunos/{aluno_id}/ultima-execucao", params={"treino_id": treino["id"]})
+
+    assert res.status_code == 200, res.text
+    [ultima] = res.json()
+    assert ultima["exercicio_id"] == treino["prescricoes"][0]["exercicio_id"]
+    assert [s["carga_kg"] for s in ultima["series"]] == [45, 42.5, 42.5]
+
+    como_usuario(_aluno_logado(aluno_id))
+    res_me = await ac.get("/alunos/me/ultima-execucao", params={"treino_id": treino["id"]})
+    assert res_me.status_code == 200, res_me.text
+    assert res_me.json() == res.json()
+
+
+@pytest.mark.anyio
+async def test_ultima_execucao_sobrevive_a_troca_de_plano(ac: AsyncClient):
+    aluno_id, treino_antigo = await _cenario(ac)
+    await _execucao(ac, treino_antigo, [40], aluno_id=aluno_id)
+
+    exercicio_id = treino_antigo["prescricoes"][0]["exercicio_id"]
+    treino_novo = (await _criar_plano(ac, aluno_id, [exercicio_id]))["treinos"][0]
+
+    res = await ac.get(f"/alunos/{aluno_id}/ultima-execucao", params={"treino_id": treino_novo["id"]})
+    assert [s["carga_kg"] for s in res.json()[0]["series"]] == [40]
+
+
+@pytest.mark.anyio
+async def test_ultima_execucao_isolada_por_trainer(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    como_usuario(TRAINER_B)
+    res = await ac.get(f"/alunos/{aluno_id}/ultima-execucao", params={"treino_id": treino["id"]})
+    assert res.status_code == 404

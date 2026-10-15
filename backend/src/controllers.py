@@ -827,6 +827,43 @@ async def substituir_series(
     await db.commit()
     return await _carregar_execucao(db, sessao.id)
 
+async def _series_do_aluno(db: AsyncSession, aluno_id: int, exercicio_ids, cronologico: bool):
+    """Séries do aluno nos exercícios dados, com a data da sessão."""
+    ordem = (models.SessaoTreino.data_hora, models.SessaoTreino.id) if cronologico else (
+        models.SessaoTreino.data_hora.desc(), models.SessaoTreino.id.desc())
+    return (await db.execute(
+        select(models.RegistroSerie, models.SessaoTreino.data_hora)
+        .join(models.SessaoTreino, models.RegistroSerie.sessao_id == models.SessaoTreino.id)
+        .where(models.SessaoTreino.aluno_id == aluno_id, models.RegistroSerie.exercicio_id.in_(exercicio_ids))
+        .order_by(*ordem, models.RegistroSerie.numero_serie)
+    )).all()
+
+
+async def ultima_execucao(
+    db: AsyncSession, aluno_id: int, treino_id: int, trainer_id: int | None = None
+) -> list[dict]:
+    """Por exercício do treino, as séries da última sessão em que o aluno o fez (em qualquer plano)."""
+    await _aluno_do_tenant(db, aluno_id, trainer_id)
+    exercicio_ids = set((await db.scalars(
+        select(models.Prescricao.exercicio_id)
+        .join(models.Treino, models.Prescricao.treino_id == models.Treino.id)
+        .join(models.PlanoTreino, models.Treino.plano_id == models.PlanoTreino.id)
+        .where(models.Treino.id == treino_id, models.PlanoTreino.aluno_id == aluno_id)
+    )).all())
+    if not exercicio_ids:
+        return []
+
+    # ponytail: lê o histórico inteiro desses exercícios; limitar por data se ficar lento
+    ultima: dict[int, dict] = {}
+    for registro, data_hora in await _series_do_aluno(db, aluno_id, exercicio_ids, cronologico=False):
+        atual = ultima.setdefault(registro.exercicio_id, {
+            "exercicio_id": registro.exercicio_id, "sessao_id": registro.sessao_id,
+            "data_hora": data_hora, "series": [],
+        })
+        if atual["sessao_id"] == registro.sessao_id:
+            atual["series"].append(registro)
+    return list(ultima.values())
+
 def _month_starts(ate_mes_atual: date, n: int = 12) -> list[date]:
     """Retorna lista (ordem crescente) com o 1º dia de cada mês, dos últimos n meses."""
     y, m = ate_mes_atual.year, ate_mes_atual.month

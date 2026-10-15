@@ -75,3 +75,15 @@ async def deletar_aluno(
 ):
     await controllers.excluir_aluno(db=db, aluno_id=aluno_id, trainer_id=resolve_tenant_filter(current_user))
     return None
+
+
+@router.get("/{aluno_id}/ultima-execucao", response_model=list[schemas.UltimaExecucaoExercicio])
+async def ultima_execucao(
+    aluno_id: int,
+    treino_id: int,
+    current_user: Usuario = Depends(get_current_trainer),
+    db: AsyncSession = Depends(database.get_db)
+):
+    return await controllers.ultima_execucao(
+        db, aluno_id=aluno_id, treino_id=treino_id, trainer_id=resolve_tenant_filter(current_user)
+    )
