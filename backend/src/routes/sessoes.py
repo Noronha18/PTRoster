@@ -9,8 +9,9 @@ from src import controllers, schemas
 from src.database import get_db
 from src.models import Usuario
 from src.security import get_current_trainer, get_current_user, resolve_tenant_filter
+from src.consultoria import exigir_acesso_treino
 
-router = APIRouter(prefix="/sessoes", tags=["Sessoes"])
+router = APIRouter(prefix="/sessoes", tags=["Sessoes"], dependencies=[Depends(exigir_acesso_treino)])
 
 
 def _validar_acesso_aluno(current_user: Usuario, aluno_id: int) -> None:

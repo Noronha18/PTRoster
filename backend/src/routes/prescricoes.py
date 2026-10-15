@@ -5,8 +5,9 @@ from src import schemas, controllers
 from src.database import get_db
 from src.models import Usuario
 from src.security import get_current_user
+from src.consultoria import exigir_acesso_treino
 
-router = APIRouter(tags=["Prescrições"])
+router = APIRouter(tags=["Prescrições"], dependencies=[Depends(exigir_acesso_treino)])
 
 
 @router.patch("/prescricoes/{prescricao_id}/carga", response_model=schemas.PrescricaoPublic)

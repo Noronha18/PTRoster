@@ -18,4 +18,10 @@ async def meu_perfil(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuário não vinculado a um aluno.",
         )
-    return await controllers.get_aluno(db, current_user.aluno_id)
+    aluno = await controllers.get_aluno(db, current_user.aluno_id)
+    if aluno.acesso_bloqueado:
+        # Esvazia só a resposta: atribuir [] à relação ORM apagaria os planos (delete-orphan)
+        return schemas.AlunoPublic.model_validate(aluno).model_copy(
+            update={"planos_treino": [], "sessoes": []}
+        )
+    return aluno

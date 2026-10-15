@@ -189,3 +189,60 @@ async def test_checkin_do_trainer_nao_debita_consultoria_com_saldo_legado(ac: As
     res = await ac.post("/sessoes/", json={"aluno_id": aluno_id})
     assert res.status_code == 201, res.text
     assert (await ac.get(f"/alunos/{aluno_id}")).json()["saldo_aulas"] == 5
+
+
+async def _aluno_bloqueado(ac: AsyncClient) -> int:
+    aluno_id = await _criar_aluno(
+        ac, modalidade="consultoria", data_vencimento_consultoria=_dia(-1), bloquear_apos_vencimento=True
+    )
+    await _criar_plano(ac, aluno_id)
+    return aluno_id
+
+
+@pytest.mark.anyio
+async def test_aluno_bloqueado_recebe_403_nos_endpoints_de_treino(ac: AsyncClient, como_usuario):
+    aluno_id = await _aluno_bloqueado(ac)
+    como_usuario(_aluno_logado(aluno_id))
+
+    for res in (
+        await ac.post("/sessoes/", json={"aluno_id": aluno_id, "tipo_atividade": "Corrida"}),
+        await ac.get("/sessoes/"),
+        await ac.patch("/prescricoes/1/carga", json={"carga": "20"}),
+    ):
+        assert res.status_code == 403, res.text
+        assert res.json()["message"] == "consultoria_vencida"
+
+
+@pytest.mark.anyio
+async def test_alunos_me_bloqueado_esconde_treinos_sem_apagar_planos(ac: AsyncClient, como_usuario):
+    aluno_id = await _aluno_bloqueado(ac)
+
+    como_usuario(_aluno_logado(aluno_id))
+    me = await ac.get("/alunos/me")
+    assert me.status_code == 200, me.text
+    assert me.json()["acesso_bloqueado"] is True
+    assert me.json()["planos_treino"] == []
+    assert me.json()["sessoes"] == []
+
+    # Regressão: planos_treino tem delete-orphan; o plano tem que continuar existindo
+    como_usuario(TRAINER_A)
+    assert len((await ac.get(f"/alunos/{aluno_id}")).json()["planos_treino"]) == 1
+
+
+@pytest.mark.anyio
+async def test_sem_trava_ou_antes_do_vencimento_acesso_liberado(ac: AsyncClient, como_usuario):
+    sem_trava = await _criar_aluno(ac, modalidade="consultoria", data_vencimento_consultoria=_dia(-1))
+    em_dia = await _criar_aluno(
+        ac, modalidade="consultoria", data_vencimento_consultoria=_dia(0), bloquear_apos_vencimento=True
+    )
+    for aluno_id in (sem_trava, em_dia):
+        como_usuario(_aluno_logado(aluno_id))
+        assert (await ac.get("/sessoes/")).status_code == 200
+        assert (await ac.get("/alunos/me")).json()["acesso_bloqueado"] is False
+
+
+@pytest.mark.anyio
+async def test_trainer_nunca_e_bloqueado(ac: AsyncClient):
+    aluno_id = await _aluno_bloqueado(ac)
+    assert (await ac.get("/sessoes/", params={"aluno_id": aluno_id})).status_code == 200
+    assert (await ac.post("/sessoes/", json={"aluno_id": aluno_id})).status_code == 201

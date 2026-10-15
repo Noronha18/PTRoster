@@ -4,7 +4,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date, timedelta
 
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src import models
+from src.database import get_db
+from src.security import get_current_user
 
 JANELA_AVISO_DIAS = 7
 CODIGO_CONSULTORIA_VENCIDA = "consultoria_vencida"
@@ -43,3 +48,15 @@ def preencher_avisos(aluno: models.Aluno, hoje: date) -> None:
     )
     plano = plano_vigente(aluno.planos_treino)
     aluno.dias_para_fim_programa = (fim_programa(plano) - hoje).days if plano else None
+
+
+async def exigir_acesso_treino(
+    current_user: models.Usuario = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Barra o aluno com consultoria vencida e trava ativa. Trainer/admin passam direto."""
+    if current_user.role in ("trainer", "admin") or not current_user.aluno_id:
+        return
+    aluno = await db.get(models.Aluno, current_user.aluno_id)
+    if aluno and acesso_bloqueado(aluno, date.today()):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=CODIGO_CONSULTORIA_VENCIDA)
