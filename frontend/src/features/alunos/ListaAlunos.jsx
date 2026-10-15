@@ -3,6 +3,7 @@ import { ChevronRight, Plus, UserCircle2, CheckCircle2 } from 'lucide-react';
 import { alunoService } from '../../services/api';
 import { FormAlunoModal } from './FormAlunoModal';
 import { CardAvisos } from './CardAvisos';
+import { AtividadeRecente } from '../sessoes/AtividadeRecente';
 import { useToast } from '../../components/ToastProvider';
 
 export const ListaAlunosFeature = ({ onSelectAluno }) => {
@@ -71,6 +72,7 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
             </div>
 
             <CardAvisos onSelectAluno={onSelectAluno} />
+            <AtividadeRecente onSelectAluno={onSelectAluno} />
 
             <div
                 role="tablist"
