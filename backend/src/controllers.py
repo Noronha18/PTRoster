@@ -778,21 +778,54 @@ async def calcular_frequencia_mensal(
         taxa_adesao=round(taxa_adesao, 4),
     )
 
-async def get_sessao(db: AsyncSession, sessao_id: int, trainer_id: int | None = None) -> models.SessaoTreino:
-    stmt = select(models.SessaoTreino).where(models.SessaoTreino.id == sessao_id)
+def _escopo_sessao(stmt, trainer_id: int | None, aluno_id: int | None):
+    """Trainer: sessões dos seus alunos. Aluno: só as que ele mesmo registrou."""
     if trainer_id is not None:
         stmt = stmt.join(models.Aluno, models.SessaoTreino.aluno_id == models.Aluno.id).where(
             models.Aluno.trainer_id == trainer_id
         )
-    sessao = await db.scalar(stmt)
+    if aluno_id is not None:
+        stmt = stmt.where(models.SessaoTreino.aluno_id == aluno_id, models.SessaoTreino.registrado_por == "aluno")
+    return stmt
+
+
+async def get_sessao(
+    db: AsyncSession, sessao_id: int, trainer_id: int | None = None, aluno_id: int | None = None
+) -> models.SessaoTreino:
+    stmt = select(models.SessaoTreino).where(models.SessaoTreino.id == sessao_id)
+    sessao = await db.scalar(_escopo_sessao(stmt, trainer_id, aluno_id))
     if not sessao:
         raise exceptions.ResourceNotFoundError(f"Sessão {sessao_id} não encontrada")
     return sessao
 
-async def deletar_sessao(db: AsyncSession, sessao_id: int, trainer_id: int | None = None) -> None:
-    sessao = await get_sessao(db, sessao_id, trainer_id)
+async def deletar_sessao(
+    db: AsyncSession, sessao_id: int, trainer_id: int | None = None, aluno_id: int | None = None
+) -> None:
+    sessao = await get_sessao(db, sessao_id, trainer_id, aluno_id)
     await db.delete(sessao)
     await db.commit()
+
+
+async def substituir_series(
+    db: AsyncSession,
+    sessao_id: int,
+    series: list[schemas.SerieIn],
+    trainer_id: int | None = None,
+    aluno_id: int | None = None,
+) -> models.SessaoTreino:
+    stmt = (
+        select(models.SessaoTreino)
+        .options(selectinload(models.SessaoTreino.series))
+        .where(models.SessaoTreino.id == sessao_id)
+    )
+    sessao = await db.scalar(_escopo_sessao(stmt, trainer_id, aluno_id))
+    if not sessao:
+        raise exceptions.ResourceNotFoundError(f"Sessão {sessao_id} não encontrada")
+    await _validar_series(db, series, sessao.treino_id)
+
+    sessao.series = [models.RegistroSerie(**s.model_dump()) for s in series]  # delete-orphan apaga as antigas
+    await db.commit()
+    return await _carregar_execucao(db, sessao.id)
 
 def _month_starts(ate_mes_atual: date, n: int = 12) -> list[date]:
     """Retorna lista (ordem crescente) com o 1º dia de cada mês, dos últimos n meses."""

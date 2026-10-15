@@ -161,3 +161,61 @@ async def test_excluir_aluno_com_series_registradas(ac: AsyncClient):
     aluno_id, treino = await _cenario(ac)
     await ac.post("/sessoes/execucao", json={"aluno_id": aluno_id, "treino_id": treino["id"], "series": _series(treino["prescricoes"][0], [40])})
     assert (await ac.delete(f"/alunos/{aluno_id}")).status_code == 204
+
+
+async def _execucao(ac: AsyncClient, treino: dict, cargas: list[float | None], **extras) -> dict:
+    res = await ac.post("/sessoes/execucao", json={
+        "treino_id": treino["id"], "series": _series(treino["prescricoes"][0], cargas), **extras,
+    })
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
+@pytest.mark.anyio
+async def test_aluno_edita_series_da_propria_sessao(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    sessao = await _execucao(ac, treino, [40, 40])
+
+    res = await ac.put(f"/sessoes/{sessao['id']}/series", json={"series": _series(treino["prescricoes"][0], [45])})
+
+    assert res.status_code == 200, res.text
+    assert [s["carga_kg"] for s in res.json()["series"]] == [45]
+
+
+@pytest.mark.anyio
+async def test_aluno_nao_edita_nem_exclui_sessao_de_outro_aluno(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    outro_id = await _criar_aluno(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    sessao = await _execucao(ac, treino, [40])
+
+    como_usuario(_aluno_logado(outro_id))
+    assert (await ac.put(f"/sessoes/{sessao['id']}/series", json={"series": _series(treino["prescricoes"][0], [1])})).status_code == 404
+    assert (await ac.delete(f"/sessoes/{sessao['id']}")).status_code == 404
+
+
+@pytest.mark.anyio
+async def test_aluno_nao_mexe_em_sessao_registrada_pelo_trainer(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    sessao = await _execucao(ac, treino, [40], aluno_id=aluno_id)  # trainer registrou
+
+    como_usuario(_aluno_logado(aluno_id))
+    assert (await ac.put(f"/sessoes/{sessao['id']}/series", json={"series": _series(treino["prescricoes"][0], [1])})).status_code == 404
+    assert (await ac.delete(f"/sessoes/{sessao['id']}")).status_code == 404
+
+
+@pytest.mark.anyio
+async def test_aluno_exclui_propria_sessao_e_trainer_edita_qualquer(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    s1 = await _execucao(ac, treino, [40])
+    s2 = await _execucao(ac, treino, [40])
+    assert (await ac.delete(f"/sessoes/{s1['id']}")).status_code == 204
+
+    como_usuario(TRAINER_A)
+    res = await ac.put(f"/sessoes/{s2['id']}/series", json={"series": _series(treino["prescricoes"][0], [50])})
+    assert res.status_code == 200, res.text
+
+    como_usuario(TRAINER_B)
+    assert (await ac.put(f"/sessoes/{s2['id']}/series", json={"series": _series(treino["prescricoes"][0], [1])})).status_code == 404

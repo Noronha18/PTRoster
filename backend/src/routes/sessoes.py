@@ -23,6 +23,15 @@ def _validar_acesso_aluno(current_user: Usuario, aluno_id: int) -> None:
         )
 
 
+def _escopo(current_user: Usuario) -> dict:
+    """Filtro de dono para editar/excluir sessão: trainer pelo tenant, aluno pelo próprio id."""
+    if current_user.role in ("trainer", "admin"):
+        return {"trainer_id": resolve_tenant_filter(current_user)}
+    if not current_user.aluno_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário não vinculado a um aluno.")
+    return {"aluno_id": current_user.aluno_id}
+
+
 @router.post("/", response_model=schemas.SessaoTreinoPublic, status_code=201)
 async def criar_sessao(
     payload: schemas.SessaoTreinoCreate,
@@ -112,11 +121,21 @@ async def buscar_sessao(
     return await controllers.get_sessao(db, sessao_id, trainer_id=resolve_tenant_filter(current_user))
 
 
+@router.put("/{sessao_id}/series", response_model=schemas.SessaoExecucaoPublic)
+async def substituir_series(
+    sessao_id: int,
+    payload: schemas.SeriesUpdate,
+    current_user: Usuario = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await controllers.substituir_series(db, sessao_id, payload.series, **_escopo(current_user))
+
+
 @router.delete("/{sessao_id}", status_code=204)
 async def deletar_sessao(
     sessao_id: int,
-    current_user: Usuario = Depends(get_current_trainer),
+    current_user: Usuario = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await controllers.deletar_sessao(db, sessao_id, trainer_id=resolve_tenant_filter(current_user))
+    await controllers.deletar_sessao(db, sessao_id, **_escopo(current_user))
     return Response(status_code=204)
