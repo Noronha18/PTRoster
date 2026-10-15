@@ -8,7 +8,7 @@ from src import consultoria, models
 # Mesmos ids das constantes do conftest (tests/ não é pacote, então não dá para importar de lá)
 TRAINER_A = models.Usuario(id=1, username="trainer_a", role="trainer")
 TRAINER_B = models.Usuario(id=2, username="trainer_b", role="trainer")
-HOJE = date.today()
+HOJE = consultoria.hoje()  # mesma data que o servidor usa
 
 
 def _dia(delta: int) -> str:
@@ -292,3 +292,11 @@ async def test_avisos_negado_para_aluno(ac: AsyncClient, como_usuario):
     aluno_id = await _criar_aluno(ac)
     como_usuario(_aluno_logado(aluno_id))
     assert (await ac.get("/avisos/")).status_code == 403
+
+
+@pytest.mark.anyio
+async def test_hoje_usa_horario_de_brasilia():
+    """Servidor roda em UTC: 01:00 UTC do dia 21 ainda é dia 20 em Brasília."""
+    from datetime import datetime, timezone
+    assert consultoria.hoje(datetime(2026, 10, 21, 1, 0, tzinfo=timezone.utc)) == date(2026, 10, 20)
+    assert consultoria.hoje(datetime(2026, 10, 21, 3, 0, tzinfo=timezone.utc)) == date(2026, 10, 21)

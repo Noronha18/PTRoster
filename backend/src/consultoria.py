@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,13 @@ from src.security import get_current_user
 
 JANELA_AVISO_DIAS = 7
 CODIGO_CONSULTORIA_VENCIDA = "consultoria_vencida"
+# ponytail: offset fixo UTC-3 (Brasil sem horário de verão desde 2019); ZoneInfo se voltar a ter
+FUSO_BRASILIA = timezone(timedelta(hours=-3))
+
+
+def hoje(agora: datetime | None = None) -> date:
+    """Data atual em Brasília. O servidor roda em UTC, e date.today() vira o dia às 21h."""
+    return (agora or datetime.now(timezone.utc)).astimezone(FUSO_BRASILIA).date()
 
 
 def fim_programa(plano: models.PlanoTreino) -> date:
@@ -58,5 +65,5 @@ async def exigir_acesso_treino(
     if current_user.role in ("trainer", "admin") or not current_user.aluno_id:
         return
     aluno = await db.get(models.Aluno, current_user.aluno_id)
-    if aluno and acesso_bloqueado(aluno, date.today()):
+    if aluno and acesso_bloqueado(aluno, hoje()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=CODIGO_CONSULTORIA_VENCIDA)

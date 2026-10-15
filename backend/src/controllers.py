@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def _preencher_status_aluno(db: AsyncSession, aluno: models.Aluno):
     """Calcula status financeiro e volumetria de sessões no mês atual."""
-    hoje = date.today()
+    hoje = consultoria.hoje()
     ref_mes = f"{hoje.month:02d}/{hoje.year}"
     inicio_mes = datetime(hoje.year, hoje.month, 1)
 
@@ -52,7 +52,7 @@ async def _preencher_status_aluno(db: AsyncSession, aluno: models.Aluno):
 
 async def listar_alunos_ativos(db: AsyncSession, trainer_id: int | None = None):
     """Listagem leve: sem coleções pesadas e com status calculado em queries agregadas."""
-    hoje = date.today()
+    hoje = consultoria.hoje()
     ref_mes = f"{hoje.month:02d}/{hoje.year}"
     inicio_mes = datetime(hoje.year, hoje.month, 1)
 
@@ -129,7 +129,7 @@ async def get_aluno(db: AsyncSession, aluno_id: int, trainer_id: int | None = No
         raise exceptions.ResourceNotFoundError(f"Aluno {aluno_id} não encontrado")
 
     await _preencher_status_aluno(db, aluno)
-    consultoria.preencher_avisos(aluno, date.today())
+    consultoria.preencher_avisos(aluno, consultoria.hoje())
 
     return aluno
 
@@ -205,7 +205,7 @@ async def criar_aluno(db: AsyncSession, aluno_in: schemas.AlunoCreate, trainer_i
         
         # Atributos auxiliares para o schema
         await _preencher_status_aluno(db, aluno_final)
-        consultoria.preencher_avisos(aluno_final, date.today())
+        consultoria.preencher_avisos(aluno_final, consultoria.hoje())
         
         # Garante que data_inicio exista
         if not aluno_final.data_inicio:
@@ -243,7 +243,7 @@ async def atualizar_aluno(db: AsyncSession, aluno_id: int, aluno_up: schemas.Alu
         await db.commit()
         await db.refresh(aluno)
         await _preencher_status_aluno(db, aluno)
-        consultoria.preencher_avisos(aluno, date.today())
+        consultoria.preencher_avisos(aluno, consultoria.hoje())
         return aluno
     except Exception as e:
         await db.rollback()
@@ -259,7 +259,7 @@ async def excluir_aluno(db: AsyncSession, aluno_id: int, trainer_id: int | None 
 
 async def listar_avisos(db: AsyncSession, trainer_id: int | None = None) -> dict[str, list[dict]]:
     """Consultorias vencendo/vencidas e programas terminando/terminados na janela de aviso."""
-    hoje = date.today()
+    hoje = consultoria.hoje()
     limite = hoje + timedelta(days=consultoria.JANELA_AVISO_DIAS)
     filtro = [models.Aluno.status == "ativo"]
     if trainer_id is not None:
@@ -721,7 +721,7 @@ def _month_starts(ate_mes_atual: date, n: int = 12) -> list[date]:
 
 
 async def calcular_estatisticas_financeiras(db: AsyncSession, trainer_id: int | None = None) -> dict[str, Any]:
-    hoje = date.today()
+    hoje = consultoria.hoje()
     ref_mes = f"{hoje.month:02d}/{hoje.year}"
     mes_atual_inicio = date(hoje.year, hoje.month, 1)
 
