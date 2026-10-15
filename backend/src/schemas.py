@@ -284,3 +284,22 @@ class AlunoPublic(BaseModel):
     usuario: Optional[UsuarioPublic] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+# --- SCHEMAS DE AVISOS ---
+class AvisoConsultoria(BaseModel):
+    aluno_id: int
+    aluno_nome: str
+    data_vencimento: date
+    dias_restantes: int
+
+class AvisoPrograma(BaseModel):
+    aluno_id: int
+    aluno_nome: str
+    plano_id: int
+    plano_titulo: str
+    data_fim: date
+    dias_restantes: int
+
+class AvisosPublic(BaseModel):
+    consultorias: List[AvisoConsultoria]
+    programas: List[AvisoPrograma]

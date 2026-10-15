@@ -1,7 +1,8 @@
 from __future__ import annotations
 import calendar
 import secrets
-from datetime import datetime, date
+from collections import defaultdict
+from datetime import datetime, date, timedelta
 from sqlalchemy import select, func, or_, and_, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -255,6 +256,49 @@ async def excluir_aluno(db: AsyncSession, aluno_id: int, trainer_id: int | None 
     await db.delete(aluno)
     await db.commit()
     return True
+
+async def listar_avisos(db: AsyncSession, trainer_id: int | None = None) -> dict[str, list[dict]]:
+    """Consultorias vencendo/vencidas e programas terminando/terminados na janela de aviso."""
+    hoje = date.today()
+    limite = hoje + timedelta(days=consultoria.JANELA_AVISO_DIAS)
+    filtro = [models.Aluno.status == "ativo"]
+    if trainer_id is not None:
+        filtro.append(models.Aluno.trainer_id == trainer_id)
+
+    alunos = (await db.scalars(
+        select(models.Aluno)
+        .where(*filtro, models.Aluno.modalidade == "consultoria",
+               models.Aluno.data_vencimento_consultoria <= limite)
+        .order_by(models.Aluno.data_vencimento_consultoria)
+    )).all()
+    consultorias = [
+        {"aluno_id": a.id, "aluno_nome": a.nome, "data_vencimento": a.data_vencimento_consultoria,
+         "dias_restantes": (a.data_vencimento_consultoria - hoje).days}
+        for a in alunos
+    ]
+
+    planos = (await db.scalars(
+        select(models.PlanoTreino)
+        .join(models.Aluno, models.PlanoTreino.aluno_id == models.Aluno.id)
+        .options(selectinload(models.PlanoTreino.aluno))
+        .where(*filtro, models.PlanoTreino.esta_ativo)
+    )).all()
+    por_aluno: dict[int, list[models.PlanoTreino]] = defaultdict(list)
+    for plano in planos:
+        por_aluno[plano.aluno_id].append(plano)
+
+    programas = []
+    for lista in por_aluno.values():
+        plano = consultoria.plano_vigente(lista)
+        fim = consultoria.fim_programa(plano)
+        if fim <= limite:
+            programas.append({
+                "aluno_id": plano.aluno_id, "aluno_nome": plano.aluno.nome, "plano_id": plano.id,
+                "plano_titulo": plano.titulo, "data_fim": fim, "dias_restantes": (fim - hoje).days,
+            })
+    programas.sort(key=lambda p: p["dias_restantes"])
+
+    return {"consultorias": consultorias, "programas": programas}
 
 # --- CONTROLLERS DE PLANO DE TREINO ---
 

@@ -246,3 +246,49 @@ async def test_trainer_nunca_e_bloqueado(ac: AsyncClient):
     aluno_id = await _aluno_bloqueado(ac)
     assert (await ac.get("/sessoes/", params={"aluno_id": aluno_id})).status_code == 200
     assert (await ac.post("/sessoes/", json={"aluno_id": aluno_id})).status_code == 201
+
+
+@pytest.mark.anyio
+async def test_avisos_janela_de_7_dias(ac: AsyncClient):
+    dentro = await _criar_aluno(ac, nome="Dentro", modalidade="consultoria", data_vencimento_consultoria=_dia(7))
+    await _criar_aluno(ac, nome="Fora", modalidade="consultoria", data_vencimento_consultoria=_dia(8))
+    vencido = await _criar_aluno(ac, nome="Vencido", modalidade="consultoria", data_vencimento_consultoria=_dia(-3))
+
+    curto = await _criar_aluno(ac, nome="Curto")
+    await _criar_plano(ac, curto, duracao_semanas=1)   # termina em 7 dias
+    longo = await _criar_aluno(ac, nome="Longo")
+    await _criar_plano(ac, longo, duracao_semanas=2)   # termina em 14 dias
+
+    avisos = (await ac.get("/avisos/")).json()
+    assert [a["aluno_id"] for a in avisos["consultorias"]] == [vencido, dentro]
+    assert [a["dias_restantes"] for a in avisos["consultorias"]] == [-3, 7]
+    assert [a["aluno_id"] for a in avisos["programas"]] == [curto]
+    assert avisos["programas"][0]["dias_restantes"] == 7
+
+
+@pytest.mark.anyio
+async def test_avisos_ignoram_aluno_inativo_e_plano_substituido(ac: AsyncClient):
+    suspenso = await _criar_aluno(ac, modalidade="consultoria", data_vencimento_consultoria=_dia(1))
+    res = await ac.patch(f"/alunos/{suspenso}/status", params={"status": "suspenso"})
+    assert res.status_code == 200, res.text
+
+    trocou = await _criar_aluno(ac)
+    await _criar_plano(ac, trocou, duracao_semanas=1)
+    await _criar_plano(ac, trocou, duracao_semanas=8)  # desativa o anterior
+
+    avisos = (await ac.get("/avisos/")).json()
+    assert avisos == {"consultorias": [], "programas": []}
+
+
+@pytest.mark.anyio
+async def test_avisos_isolados_por_trainer(ac: AsyncClient, como_usuario):
+    await _criar_aluno(ac, modalidade="consultoria", data_vencimento_consultoria=_dia(1))
+    como_usuario(TRAINER_B)
+    assert (await ac.get("/avisos/")).json() == {"consultorias": [], "programas": []}
+
+
+@pytest.mark.anyio
+async def test_avisos_negado_para_aluno(ac: AsyncClient, como_usuario):
+    aluno_id = await _criar_aluno(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    assert (await ac.get("/avisos/")).status_code == 403
