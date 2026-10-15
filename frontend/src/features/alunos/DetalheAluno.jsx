@@ -9,6 +9,7 @@ import { alunoService, treinoService } from '../../services/api';
 import { ModalPlanoTreino } from './ModalPlanoTreino';
 import { FormAlunoModal } from './FormAlunoModal';
 import ModalRegistrarSessao from '../sessoes/ModalRegistrarSessao';
+import { EvolucaoExercicio } from './EvolucaoExercicio';
 import { useToast } from '../../components/ToastProvider';
 
 const METODOS_AGRUPADORES = ["Bi-set", "Tri-set", "Giant-set", "Super-set"];
@@ -409,6 +410,9 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                             </div>
                         )}
                     </div>
+
+                    {/* key: recarrega a evolução quando entra uma sessão nova */}
+                    <EvolucaoExercicio key={aluno.sessoes?.length ?? 0} alunoId={alunoId} />
 
                     {/* Histórico */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
