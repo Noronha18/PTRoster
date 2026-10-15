@@ -6,7 +6,7 @@ from sqlalchemy import select, func, or_, and_, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any
-from src import models, schemas, exceptions
+from src import models, schemas, exceptions, consultoria
 from src.security import get_password_hash
 import logging
 
@@ -21,7 +21,9 @@ async def _preencher_status_aluno(db: AsyncSession, aluno: models.Aluno):
     inicio_mes = datetime(hoje.year, hoje.month, 1)
 
     # 1. Status Financeiro
-    if aluno.tipo_pagamento == "pacote":
+    if aluno.modalidade == "consultoria":
+        aluno.status_financeiro = "em_dia" if consultoria.consultoria_em_dia(aluno, hoje) else "atrasado"
+    elif aluno.tipo_pagamento == "pacote":
         # Se for pacote, está em dia se tiver saldo de aulas
         aluno.status_financeiro = "em_dia" if aluno.saldo_aulas > 0 else "atrasado"
     else:
@@ -92,7 +94,9 @@ async def listar_alunos_ativos(db: AsyncSession, trainer_id: int | None = None):
     sessoes_por_aluno = dict(sessoes.all())
 
     for aluno in alunos:
-        if aluno.tipo_pagamento == "pacote":
+        if aluno.modalidade == "consultoria":
+            aluno.status_financeiro = "em_dia" if consultoria.consultoria_em_dia(aluno, hoje) else "atrasado"
+        elif aluno.tipo_pagamento == "pacote":
             aluno.status_financeiro = "em_dia" if aluno.saldo_aulas > 0 else "atrasado"
         else:
             aluno.status_financeiro = "em_dia" if aluno.id in ids_pagos else "atrasado"
@@ -124,6 +128,7 @@ async def get_aluno(db: AsyncSession, aluno_id: int, trainer_id: int | None = No
         raise exceptions.ResourceNotFoundError(f"Aluno {aluno_id} não encontrado")
 
     await _preencher_status_aluno(db, aluno)
+    consultoria.preencher_avisos(aluno, date.today())
 
     return aluno
 
@@ -198,8 +203,8 @@ async def criar_aluno(db: AsyncSession, aluno_in: schemas.AlunoCreate, trainer_i
         aluno_final = result.scalar()
         
         # Atributos auxiliares para o schema
-        aluno_final.status_financeiro = "em_dia"
-        aluno_final.aulas_feitas_mes = 0
+        await _preencher_status_aluno(db, aluno_final)
+        consultoria.preencher_avisos(aluno_final, date.today())
         
         # Garante que data_inicio exista
         if not aluno_final.data_inicio:
@@ -237,6 +242,7 @@ async def atualizar_aluno(db: AsyncSession, aluno_id: int, aluno_up: schemas.Alu
         await db.commit()
         await db.refresh(aluno)
         await _preencher_status_aluno(db, aluno)
+        consultoria.preencher_avisos(aluno, date.today())
         return aluno
     except Exception as e:
         await db.rollback()
@@ -685,15 +691,21 @@ async def calcular_estatisticas_financeiras(db: AsyncSession, trainer_id: int | 
         .where(
             or_(
                 and_(
+                    models.Aluno.modalidade == "presencial",
                     models.Aluno.tipo_pagamento == "mensal",
                     models.Aluno.id.in_(
                         select(models.Pagamento.aluno_id).where(models.Pagamento.referencia_mes == ref_mes)
                     )
                 ),
                 and_(
+                    models.Aluno.modalidade == "presencial",
                     models.Aluno.tipo_pagamento == "pacote",
                     models.Aluno.saldo_aulas > 0
-                )
+                ),
+                and_(
+                    models.Aluno.modalidade == "consultoria",
+                    models.Aluno.data_vencimento_consultoria >= hoje
+                ),
             )
         )
         .scalar_subquery()
