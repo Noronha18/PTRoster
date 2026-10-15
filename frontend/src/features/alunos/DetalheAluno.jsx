@@ -8,6 +8,7 @@ import {
 import { alunoService, treinoService } from '../../services/api';
 import { ModalPlanoTreino } from './ModalPlanoTreino';
 import { FormAlunoModal } from './FormAlunoModal';
+import ModalRegistrarSessao from '../sessoes/ModalRegistrarSessao';
 import { useToast } from '../../components/ToastProvider';
 
 const METODOS_AGRUPADORES = ["Bi-set", "Tri-set", "Giant-set", "Super-set"];
@@ -33,6 +34,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
     const [error, setError] = useState(null);
     const [isModalPlanoOpen, setIsModalPlanoOpen] = useState(false);
     const [isModalEditOpen, setIsModalEditOpen] = useState(false);
+    const [isModalSessaoOpen, setIsModalSessaoOpen] = useState(false);
     const [planoSelecionado, setPlanoSelecionado] = useState(null);
     const [planoEdicao, setPlanoEdicao] = useState(null);
     const [expandirSessoes, setExpandirSessoes] = useState(false);
@@ -190,6 +192,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     {aluno.status === 'ativo' && (
+                        <>
                         <button
                             onClick={handleCheckIn}
                             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-brand-fg px-4 py-2 rounded-lg transition-all active:scale-95 shadow-sm"
@@ -197,6 +200,14 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                             <CheckCircle2 size={16} />
                             <span className="text-xs font-bold uppercase tracking-widest">Check-in</span>
                         </button>
+                        <button
+                            onClick={() => setIsModalSessaoOpen(true)}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-surface hover:bg-overlay text-text-primary border border-border px-4 py-2 rounded-lg transition-all active:scale-95"
+                        >
+                            <Dumbbell size={16} />
+                            <span className="text-xs font-bold uppercase tracking-widest">Registrar Treino</span>
+                        </button>
+                        </>
                     )}
 
                     <select
@@ -456,6 +467,14 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
             </div>
 
             {/* Modais */}
+            {isModalSessaoOpen && (
+                <ModalRegistrarSessao
+                    alunoId={alunoId}
+                    planos={aluno.planos_treino}
+                    onClose={() => setIsModalSessaoOpen(false)}
+                    onSucesso={() => { toast({ tipo: 'sucesso', texto: 'Treino registrado!' }); carregar(); }}
+                />
+            )}
             <ModalPlanoTreino
                 isOpen={isModalPlanoOpen}
                 onClose={() => { setIsModalPlanoOpen(false); setPlanoEdicao(null); }}

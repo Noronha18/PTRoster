@@ -40,6 +40,9 @@ async function apiFetch(endpoint, options = {}) {
 export const alunoService = {
     listar: () => apiFetch('/alunos/'),
     obterPorId: (id) => apiFetch(`/alunos/${id}`),
+    ultimaExecucao: (id, treinoId) => apiFetch(`/alunos/${id}/ultima-execucao?treino_id=${treinoId}`),
+    evolucao: (id, exercicioId) =>
+        apiFetch(`/alunos/${id}/evolucao${exercicioId ? `?exercicio_id=${exercicioId}` : ''}`),
     criar: (dados) => apiFetch('/alunos/', {
         method: 'POST',
         body: JSON.stringify(dados),
@@ -103,6 +106,10 @@ export const avisoService = {
     listar: () => apiFetch('/avisos/'),
 };
 
+export const atividadeService = {
+    recente: () => apiFetch('/atividade-recente'),
+};
+
 export const pagamentoService = {
     listar: () => apiFetch('/pagamentos/'),
     registrar: (dados) => apiFetch('/pagamentos/', {
@@ -126,6 +133,10 @@ export const sessaoService = {
     frequencia: (alunoId, referenciaMes) =>
         apiFetch(`/sessoes/frequencia/${alunoId}?referencia_mes=${encodeURIComponent(referenciaMes)}`),
     registrar: (dados) => apiFetch('/sessoes/', {
+        method: 'POST',
+        body: JSON.stringify(dados),
+    }),
+    registrarExecucao: (dados) => apiFetch('/sessoes/execucao', {
         method: 'POST',
         body: JSON.stringify(dados),
     }),
