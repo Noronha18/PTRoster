@@ -25,6 +25,8 @@ export const ModalPagamento = ({ isOpen, onClose, onSuccess }) => {
     }, [isOpen]);
 
     useEffect(() => {
+        // Vencimento é por contrato: nunca herdar o de outro aluno nem de uma abertura anterior
+        setFormData(prev => ({ ...prev, novo_vencimento: '' }));
         if (formData.aluno_id) {
             const aluno = alunos.find(a => a.id === parseInt(formData.aluno_id));
             setAlunoSelecionado(aluno);
