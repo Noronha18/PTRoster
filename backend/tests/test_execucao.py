@@ -357,3 +357,8 @@ async def test_feed_isolado_por_trainer_e_fechado_ao_aluno(ac: AsyncClient, como
 
     como_usuario(_aluno_logado(aluno_id))
     assert (await ac.get("/atividade-recente")).status_code == 403
+
+
+@pytest.mark.anyio
+async def test_patch_de_carga_foi_removido(ac: AsyncClient):
+    assert (await ac.patch("/prescricoes/1/carga", json={"carga": "20"})).status_code in (404, 405)

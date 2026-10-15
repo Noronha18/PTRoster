@@ -493,28 +493,6 @@ async def deletar_prescricao(db: AsyncSession, prescricao_id: int) -> None:
     await db.commit()
 
 
-async def atualizar_carga_prescricao(
-    db: AsyncSession, prescricao_id: int, nova_carga: str | None, aluno_id: int
-) -> models.Prescricao:
-    prescricao = await db.scalar(
-        select(models.Prescricao)
-        .options(
-            selectinload(models.Prescricao.treino).selectinload(models.Treino.plano)
-        )
-        .where(models.Prescricao.id == prescricao_id)
-    )
-    if not prescricao:
-        raise exceptions.ResourceNotFoundError(f"Prescrição {prescricao_id} não encontrada")
-
-    if prescricao.treino.plano.aluno_id != aluno_id:
-        raise exceptions.BusinessRuleError("Sem permissão para editar esta prescrição")
-
-    prescricao.carga = nova_carga
-    await db.commit()
-    await db.refresh(prescricao)
-    return prescricao
-
-
 async def atualizar_prescricao(db: AsyncSession, prescricao_id: int, payload: schemas.PrescricaoUpdate) -> models.Prescricao:
     prescricao = await db.scalar(select(models.Prescricao).where(models.Prescricao.id == prescricao_id))
     if not prescricao:

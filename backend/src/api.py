@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src import exceptions
-from src.routes import alunos, planos, pagamentos, sessoes, auth, exercicios, meu_perfil, admin, prescricoes, avisos, atividade
+from src.routes import alunos, planos, pagamentos, sessoes, auth, exercicios, meu_perfil, admin, avisos, atividade
 from src.config import settings # Importa as configurações
 
 # Configuração básica de logging
@@ -90,7 +90,6 @@ app.include_router(admin.router)
 app.include_router(meu_perfil.router)  # antes do router de alunos (evita conflito com /{aluno_id})
 app.include_router(alunos.router) 
 app.include_router(planos.router)
-app.include_router(prescricoes.router)
 app.include_router(exercicios.router)
 app.include_router(pagamentos.router)
 app.include_router(sessoes.router)

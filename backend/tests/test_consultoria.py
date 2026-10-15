@@ -207,7 +207,7 @@ async def test_aluno_bloqueado_recebe_403_nos_endpoints_de_treino(ac: AsyncClien
     for res in (
         await ac.post("/sessoes/", json={"aluno_id": aluno_id, "tipo_atividade": "Corrida"}),
         await ac.get("/sessoes/"),
-        await ac.patch("/prescricoes/1/carga", json={"carga": "20"}),
+        await ac.post("/sessoes/execucao", json={"treino_id": 1, "series": [{"exercicio_id": 1, "numero_serie": 1, "repeticoes": 10}]}),
     ):
         assert res.status_code == 403, res.text
         assert res.json()["message"] == "consultoria_vencida"

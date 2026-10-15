@@ -28,9 +28,6 @@ class ExercicioPublic(ExercicioBase):
     model_config = ConfigDict(from_attributes=True)
 
 # --- SCHEMAS DE PRESCRIÇÃO ---
-class PrescricaoCargarUpdate(BaseModel):
-    carga: Optional[str] = None
-
 class PrescricaoCreate(BaseModel):
     exercicio_id: int
     series: int
