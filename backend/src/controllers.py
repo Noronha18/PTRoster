@@ -303,6 +303,14 @@ async def registrar_pagamento(db: AsyncSession, dados: schemas.PagamentoCreate, 
     ref = dados.referencia_mes or f"{hoje.month:02d}/{hoje.year}"
     _parse_referencia_mes(ref)
 
+    # Consultoria não usa saldo: o pagamento renova o vencimento do contrato
+    quantidade_aulas = dados.quantidade_aulas
+    if aluno.modalidade == "consultoria":
+        if not dados.novo_vencimento:
+            raise exceptions.BusinessRuleError("Informe o novo vencimento da consultoria.")
+        aluno.data_vencimento_consultoria = dados.novo_vencimento
+        quantidade_aulas = 0
+
     novo_pagamento = models.Pagamento(
         aluno_id=dados.aluno_id,
         valor=dados.valor,
@@ -310,12 +318,12 @@ async def registrar_pagamento(db: AsyncSession, dados: schemas.PagamentoCreate, 
         forma_pagamento=dados.forma_pagamento,
         observacao=dados.observacao,
         data_pagamento=dados.data_pagamento or hoje,
-        quantidade_aulas=dados.quantidade_aulas
+        quantidade_aulas=quantidade_aulas
     )
-    
+
     # Se informou quantidade de aulas, soma ao saldo do aluno (recarga)
-    if dados.quantidade_aulas > 0:
-        aluno.saldo_aulas += dados.quantidade_aulas
+    if quantidade_aulas > 0:
+        aluno.saldo_aulas += quantidade_aulas
 
     db.add(novo_pagamento)
     try:
@@ -534,7 +542,8 @@ async def registrar_sessao(
     aula_contabilizada = payload.realizada or (not payload.realizada and not payload.precisa_reposicao)
 
     aviso = None
-    if registrado_por_staff and aula_contabilizada and aluno.tipo_pagamento == "pacote":
+    if (registrado_por_staff and aula_contabilizada
+            and aluno.modalidade == "presencial" and aluno.tipo_pagamento == "pacote"):
         # UPDATE condicional: atômico sob concorrência e nunca deixa o saldo negativo
         res_debito = await db.execute(
             update(models.Aluno)

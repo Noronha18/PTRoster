@@ -113,6 +113,7 @@ class PagamentoCreate(BaseModel):
     quantidade_aulas: int = 0
     data_pagamento: Optional[date] = None
     observacao: Optional[str] = None
+    novo_vencimento: Optional[date] = None  # obrigatório para aluno de consultoria
 
 class PagamentoPublic(PagamentoCreate):
     id: int

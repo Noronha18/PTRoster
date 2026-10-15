@@ -143,3 +143,49 @@ async def test_presencial_nao_tem_dias_para_vencimento(ac: AsyncClient):
     aluno = (await ac.get(f"/alunos/{aluno_id}")).json()
     assert aluno["dias_para_vencimento_consultoria"] is None
     assert aluno["dias_para_fim_programa"] is None
+
+
+def _pagamento(aluno_id: int, **extras) -> dict:
+    return {"aluno_id": aluno_id, "valor": 300.0, "referencia_mes": f"{HOJE.month:02d}/{HOJE.year}",
+            "forma_pagamento": "PIX", **extras}
+
+
+@pytest.mark.anyio
+async def test_pagamento_de_consultoria_renova_vencimento_e_ignora_aulas(ac: AsyncClient):
+    aluno_id = await _criar_aluno(ac, modalidade="consultoria", data_vencimento_consultoria=_dia(-2))
+    res = await ac.post("/pagamentos/", json=_pagamento(aluno_id, novo_vencimento=_dia(90), quantidade_aulas=10))
+    assert res.status_code == 201, res.text
+
+    aluno = (await ac.get(f"/alunos/{aluno_id}")).json()
+    assert aluno["data_vencimento_consultoria"] == _dia(90)
+    assert aluno["saldo_aulas"] == 0
+    assert aluno["status_financeiro"] == "em_dia"
+
+
+@pytest.mark.anyio
+async def test_pagamento_de_consultoria_exige_novo_vencimento(ac: AsyncClient):
+    aluno_id = await _criar_aluno(ac, modalidade="consultoria", data_vencimento_consultoria=_dia(-2))
+    res = await ac.post("/pagamentos/", json=_pagamento(aluno_id))
+    assert res.status_code == 409
+    assert "vencimento" in res.json()["message"].lower()
+
+
+@pytest.mark.anyio
+async def test_pagamento_presencial_ignora_novo_vencimento(ac: AsyncClient):
+    aluno_id = await _criar_aluno(ac, tipo_pagamento="pacote")
+    res = await ac.post("/pagamentos/", json=_pagamento(aluno_id, quantidade_aulas=8, novo_vencimento=_dia(30)))
+    assert res.status_code == 201, res.text
+    aluno = (await ac.get(f"/alunos/{aluno_id}")).json()
+    assert aluno["saldo_aulas"] == 8
+    assert aluno["data_vencimento_consultoria"] is None
+
+
+@pytest.mark.anyio
+async def test_checkin_do_trainer_nao_debita_consultoria_com_saldo_legado(ac: AsyncClient):
+    aluno_id = await _criar_aluno(
+        ac, modalidade="consultoria", tipo_pagamento="pacote", saldo_aulas=5,
+        data_vencimento_consultoria=_dia(30),
+    )
+    res = await ac.post("/sessoes/", json={"aluno_id": aluno_id})
+    assert res.status_code == 201, res.text
+    assert (await ac.get(f"/alunos/{aluno_id}")).json()["saldo_aulas"] == 5
