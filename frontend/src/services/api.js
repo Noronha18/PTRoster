@@ -99,6 +99,10 @@ export const financeiroService = {
     obterEstatisticas: () => apiFetch('/pagamentos/estatisticas'),
 };
 
+export const avisoService = {
+    listar: () => apiFetch('/avisos/'),
+};
+
 export const pagamentoService = {
     listar: () => apiFetch('/pagamentos/'),
     registrar: (dados) => apiFetch('/pagamentos/', {

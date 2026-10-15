@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronRight, Plus, UserCircle2, CheckCircle2 } from 'lucide-react';
 import { alunoService } from '../../services/api';
 import { FormAlunoModal } from './FormAlunoModal';
+import { CardAvisos } from './CardAvisos';
 import { useToast } from '../../components/ToastProvider';
 
 export const ListaAlunosFeature = ({ onSelectAluno }) => {
@@ -68,6 +69,8 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
                     <span className="hidden sm:inline text-xs uppercase tracking-widest">Novo Aluno</span>
                 </button>
             </div>
+
+            <CardAvisos onSelectAluno={onSelectAluno} />
 
             <div
                 role="tablist"
@@ -140,9 +143,11 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
                                     <p className="text-text-secondary text-xs font-mono tracking-tight uppercase">{aluno.cpf || "Sem CPF"}</p>
                                     <span className="w-1 h-1 rounded-full bg-border hidden sm:inline" />
                                     <p className="text-xs text-text-secondary font-medium hidden sm:block uppercase tracking-wide">
-                                        {aluno.tipo_pagamento === 'pacote'
-                                            ? `${aluno.saldo_aulas} aulas restantes`
-                                            : 'Plano Mensal'}
+                                        {aluno.modalidade === 'consultoria'
+                                            ? `Consultoria${aluno.data_vencimento_consultoria ? ` · vence ${new Date(aluno.data_vencimento_consultoria + 'T00:00').toLocaleDateString('pt-BR')}` : ''}`
+                                            : aluno.tipo_pagamento === 'pacote'
+                                                ? `${aluno.saldo_aulas} aulas restantes`
+                                                : 'Plano Mensal'}
                                     </p>
                                 </div>
                             </div>

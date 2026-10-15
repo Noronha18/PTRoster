@@ -21,6 +21,9 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
         username: '',
         password: '',
         trainer_id: null,
+        modalidade: 'presencial',
+        data_vencimento_consultoria: '',
+        bloquear_apos_vencimento: false,
     });
 
     useEffect(() => {
@@ -45,6 +48,9 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
                 username: alunoEdicao.usuario?.username || '',
                 password: '',
                 trainer_id: alunoEdicao.trainer_id ?? null,
+                modalidade: alunoEdicao.modalidade || 'presencial',
+                data_vencimento_consultoria: alunoEdicao.data_vencimento_consultoria || '',
+                bloquear_apos_vencimento: !!alunoEdicao.bloquear_apos_vencimento,
             });
         } else if (isOpen) {
             setFormData({
@@ -61,6 +67,9 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
                 username: '',
                 password: '',
                 trainer_id: null,
+                modalidade: 'presencial',
+                data_vencimento_consultoria: '',
+                bloquear_apos_vencimento: false,
             });
         }
     }, [isOpen, alunoEdicao]);
@@ -83,6 +92,10 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
             username: formData.username?.trim() || null,
             password: formData.password?.trim() || null,
             trainer_id: formData.trainer_id ? parseInt(formData.trainer_id) : null,
+            data_vencimento_consultoria: formData.modalidade === 'consultoria'
+                ? (formData.data_vencimento_consultoria || null)
+                : null,
+            bloquear_apos_vencimento: formData.modalidade === 'consultoria' && formData.bloquear_apos_vencimento,
         };
 
         try {
@@ -241,6 +254,55 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
                             )}
 
                     <div className="space-y-4">
+                        <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Tipo de Atendimento</label>
+                        <div className="flex gap-4">
+                            {[
+                                { id: 'presencial', label: 'Presencial' },
+                                { id: 'consultoria', label: 'Consultoria' }
+                            ].map(m => (
+                                <button
+                                    key={m.id}
+                                    type="button"
+                                    aria-pressed={formData.modalidade === m.id}
+                                    onClick={() => setFormData({...formData, modalidade: m.id})}
+                                    className={`flex-1 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all border
+                                        ${formData.modalidade === m.id
+                                            ? 'bg-brand text-brand-fg border-brand shadow-lg shadow-brand/20'
+                                            : 'bg-overlay text-text-muted border-border hover:bg-overlay'}`}
+                                >
+                                    {m.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {formData.modalidade === 'consultoria' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end animate-in fade-in duration-300">
+                            <div className="space-y-2">
+                                <label htmlFor="venc-consultoria" className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Vencimento da Consultoria</label>
+                                <input
+                                    id="venc-consultoria"
+                                    required
+                                    type="date"
+                                    className="w-full bg-overlay border border-border rounded-2xl px-5 py-4 text-text-primary font-semibold outline-none focus:ring-2 focus:ring-brand/20"
+                                    value={formData.data_vencimento_consultoria}
+                                    onChange={(e) => setFormData({...formData, data_vencimento_consultoria: e.target.value})}
+                                />
+                            </div>
+                            <label className="flex items-center gap-3 px-1 py-4 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="w-5 h-5 accent-[var(--color-brand)]"
+                                    checked={formData.bloquear_apos_vencimento}
+                                    onChange={(e) => setFormData({...formData, bloquear_apos_vencimento: e.target.checked})}
+                                />
+                                <span className="text-sm font-semibold text-text-primary">Bloquear acesso aos treinos após o vencimento</span>
+                            </label>
+                        </div>
+                    )}
+
+                    {formData.modalidade === 'presencial' && (
+                    <div className="space-y-4">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Modalidade de Pagamento</label>
                         <div className="flex gap-4">
                             {[
@@ -261,6 +323,7 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
                             ))}
                         </div>
                     </div>
+                    )}
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         <div className="space-y-2">
@@ -281,7 +344,9 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">
-                                {formData.tipo_pagamento === 'mensal' ? 'Mensalidade' : 'Valor do Pacote'}
+                                {formData.modalidade === 'consultoria'
+                                    ? 'Valor da Consultoria'
+                                    : formData.tipo_pagamento === 'mensal' ? 'Mensalidade' : 'Valor do Pacote'}
                             </label>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
@@ -310,7 +375,7 @@ export const FormAlunoModal = ({ isOpen, onClose, onSuccess, alunoEdicao = null 
                                 onChange={(e) => setFormData({...formData, idade: e.target.value})}
                             />
                         </div>
-                        {formData.tipo_pagamento === 'mensal' && (
+                        {formData.modalidade === 'presencial' && formData.tipo_pagamento === 'mensal' && (
                             <div className="space-y-2 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Vencimento</label>
                                 <input 

@@ -253,6 +253,21 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                                     : 'bg-brand/10 text-brand border-brand/20'}`}>
                                 {aluno.status_financeiro === 'atrasado' ? 'Pendência Financeira' : 'Situação Regular'}
                             </span>
+
+                            {aluno.dias_para_vencimento_consultoria != null && aluno.dias_para_vencimento_consultoria <= 7 && (
+                                <span className="mt-2 px-3 py-1 rounded-full text-2xs font-bold uppercase tracking-widest bg-danger/10 text-danger">
+                                    {aluno.dias_para_vencimento_consultoria < 0
+                                        ? 'Consultoria vencida'
+                                        : `Consultoria vence em ${aluno.dias_para_vencimento_consultoria}d`}
+                                </span>
+                            )}
+                            {aluno.dias_para_fim_programa != null && aluno.dias_para_fim_programa <= 7 && (
+                                <span className="mt-2 px-3 py-1 rounded-full text-2xs font-bold uppercase tracking-widest bg-warning-subtle text-warning-text">
+                                    {aluno.dias_para_fim_programa < 0
+                                        ? 'Programa encerrado'
+                                        : `Programa termina em ${aluno.dias_para_fim_programa}d`}
+                                </span>
+                            )}
                         </div>
 
                         <div className="space-y-4">
@@ -292,7 +307,16 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                                     <p className="text-xs text-text-primary font-bold font-mono">{new Date(aluno.data_inicio).toLocaleDateString('pt-BR')}</p>
                                 </div>
                                 <div className="text-center">
-                                    {aluno.tipo_pagamento === 'pacote' ? (
+                                    {aluno.modalidade === 'consultoria' ? (
+                                        <>
+                                            <p className="text-2xs font-bold text-text-muted uppercase tracking-widest mb-1">Consultoria até</p>
+                                            <p className={`text-xs font-bold font-mono ${aluno.dias_para_vencimento_consultoria < 0 ? 'text-danger' : 'text-text-primary'}`}>
+                                                {aluno.data_vencimento_consultoria
+                                                    ? new Date(aluno.data_vencimento_consultoria + 'T00:00').toLocaleDateString('pt-BR')
+                                                    : 'SEM DATA'}
+                                            </p>
+                                        </>
+                                    ) : aluno.tipo_pagamento === 'pacote' ? (
                                         <>
                                             <p className="text-2xs font-bold text-text-muted uppercase tracking-widest mb-1">Créditos</p>
                                             <p className={`text-xs font-bold font-mono ${aluno.saldo_aulas > 0 ? 'text-brand' : 'text-danger'}`}>

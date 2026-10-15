@@ -14,7 +14,8 @@ export const ModalPagamento = ({ isOpen, onClose, onSuccess }) => {
         referencia_mes: new Date().toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
         forma_pagamento: 'PIX',
         quantidade_aulas: 0,
-        observacao: ''
+        observacao: '',
+        novo_vencimento: ''
     });
 
     useEffect(() => {
@@ -27,7 +28,7 @@ export const ModalPagamento = ({ isOpen, onClose, onSuccess }) => {
         if (formData.aluno_id) {
             const aluno = alunos.find(a => a.id === parseInt(formData.aluno_id));
             setAlunoSelecionado(aluno);
-            if (aluno && aluno.tipo_pagamento === 'pacote' && !formData.valor) {
+            if (aluno && (aluno.tipo_pagamento === 'pacote' || aluno.modalidade === 'consultoria') && !formData.valor) {
                 setFormData(prev => ({ ...prev, valor: aluno.valor_mensalidade }));
             }
         } else {
@@ -45,7 +46,8 @@ export const ModalPagamento = ({ isOpen, onClose, onSuccess }) => {
                 ...formData,
                 aluno_id: parseInt(formData.aluno_id),
                 valor: parseFloat(formData.valor),
-                quantidade_aulas: parseInt(formData.quantidade_aulas) || 0
+                quantidade_aulas: parseInt(formData.quantidade_aulas) || 0,
+                novo_vencimento: formData.novo_vencimento || null
             });
             if (onSuccess) onSuccess();
             onClose();
@@ -120,6 +122,7 @@ export const ModalPagamento = ({ isOpen, onClose, onSuccess }) => {
                         </div>
                     </div>
 
+                    {alunoSelecionado?.modalidade !== 'consultoria' && (
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1 flex items-center gap-2">
                             <Hash size={14} className="text-brand" />
@@ -139,6 +142,28 @@ export const ModalPagamento = ({ isOpen, onClose, onSuccess }) => {
                             </p>
                         )}
                     </div>
+                    )}
+
+                    {alunoSelecionado?.modalidade === 'consultoria' && (
+                        <div className="space-y-2">
+                            <label htmlFor="novo-vencimento" className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1 flex items-center gap-2">
+                                <Calendar size={14} className="text-brand" /> Novo Vencimento
+                            </label>
+                            <input
+                                id="novo-vencimento"
+                                required
+                                type="date"
+                                className="w-full bg-overlay border border-brand/30 ring-2 ring-brand/5 rounded-2xl px-5 py-4 text-text-primary font-bold outline-none focus:ring-2 focus:ring-brand/10 transition-all"
+                                value={formData.novo_vencimento}
+                                onChange={(e) => setFormData({...formData, novo_vencimento: e.target.value})}
+                            />
+                            {alunoSelecionado.data_vencimento_consultoria && (
+                                <p className="text-xs text-text-muted ml-1">
+                                    Vencimento atual: {new Date(alunoSelecionado.data_vencimento_consultoria + 'T00:00').toLocaleDateString('pt-BR')}
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="space-y-4">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Forma de Pagamento</label>
