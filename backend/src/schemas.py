@@ -4,6 +4,7 @@ from typing import Optional, List, Literal
 
 StatusAluno = Literal["ativo", "suspenso", "cancelado"]
 TipoPagamento = Literal["mensal", "pacote"]
+Modalidade = Literal["presencial", "consultoria"]
 
 # --- SCHEMAS DE AUTENTICAÇÃO ---
 class Token(BaseModel):
@@ -171,6 +172,9 @@ class AlunoBase(BaseModel):
     objetivo: Optional[str] = None
     restricoes: Optional[str] = None
     status: StatusAluno = "ativo"
+    modalidade: Modalidade = "presencial"
+    data_vencimento_consultoria: Optional[date] = None
+    bloquear_apos_vencimento: bool = False
 
 class AlunoCreate(AlunoBase):
     username: Optional[str] = None
@@ -220,6 +224,9 @@ class AlunoUpdate(BaseModel):
     objetivo: Optional[str] = None
     restricoes: Optional[str] = None
     status: Optional[StatusAluno] = None
+    modalidade: Optional[Modalidade] = None
+    data_vencimento_consultoria: Optional[date] = None
+    bloquear_apos_vencimento: Optional[bool] = None
     trainer_id: Optional[int] = None  # aplicado apenas quando o usuário é admin
 
 class AlunoResumo(BaseModel):
@@ -236,6 +243,9 @@ class AlunoResumo(BaseModel):
     valor_mensalidade: float
     idade: int
     status: str = "ativo"
+    modalidade: str = "presencial"
+    data_vencimento_consultoria: Optional[date] = None
+    bloquear_apos_vencimento: bool = False
     status_financeiro: str = "em_dia"
     aulas_feitas_mes: int = 0
     trainer_id: Optional[int] = None
@@ -258,6 +268,12 @@ class AlunoPublic(BaseModel):
     objetivo: Optional[str] = None
     restricoes: Optional[str] = None
     status: str = "ativo"
+    modalidade: str = "presencial"
+    data_vencimento_consultoria: Optional[date] = None
+    bloquear_apos_vencimento: bool = False
+    acesso_bloqueado: bool = False
+    dias_para_vencimento_consultoria: Optional[int] = None
+    dias_para_fim_programa: Optional[int] = None
     status_financeiro: str = "em_dia"
     aulas_feitas_mes: int = 0
     trainer_id: Optional[int] = None

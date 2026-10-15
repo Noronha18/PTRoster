@@ -38,6 +38,9 @@ class Aluno(Base):
     objetivo = Column(Text, nullable=True)
     restricoes = Column(Text, nullable=True)
     status = Column(String, default="ativo") # "ativo", "suspenso", "cancelado"
+    modalidade = Column(String, default="presencial", nullable=False)  # "presencial" ou "consultoria"
+    data_vencimento_consultoria = Column(Date, nullable=True)
+    bloquear_apos_vencimento = Column(Boolean, default=False, nullable=False)
 
     trainer_id = Column(Integer, ForeignKey('usuarios.id', ondelete='RESTRICT'), nullable=True, index=True)
 
@@ -50,6 +53,9 @@ class Aluno(Base):
     # Propriedades auxiliares para a View
     aulas_feitas_mes = 0
     status_financeiro = "em_dia"
+    acesso_bloqueado = False
+    dias_para_vencimento_consultoria = None
+    dias_para_fim_programa = None
 
 
 class Pagamento(Base):
