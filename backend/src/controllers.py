@@ -864,6 +864,36 @@ async def ultima_execucao(
             atual["series"].append(registro)
     return list(ultima.values())
 
+async def evolucao_exercicio(
+    db: AsyncSession, aluno_id: int, exercicio_id: int | None = None, trainer_id: int | None = None
+) -> dict:
+    """Exercícios com registro e, para o escolhido, as séries agrupadas por semana (segunda a domingo)."""
+    await _aluno_do_tenant(db, aluno_id, trainer_id)
+    exercicios = (await db.execute(
+        select(models.Exercicio.id, models.Exercicio.nome).distinct()
+        .join(models.RegistroSerie, models.RegistroSerie.exercicio_id == models.Exercicio.id)
+        .join(models.SessaoTreino, models.RegistroSerie.sessao_id == models.SessaoTreino.id)
+        .where(models.SessaoTreino.aluno_id == aluno_id)
+        .order_by(models.Exercicio.nome)
+    )).all()
+
+    semanas = []
+    if exercicio_id is not None:
+        por_semana: dict[date, list] = defaultdict(list)  # dict mantém a ordem cronológica de inserção
+        for registro, data_hora in await _series_do_aluno(db, aluno_id, {exercicio_id}, cronologico=True):
+            dia = data_hora.date()
+            por_semana[dia - timedelta(days=dia.weekday())].append(registro)
+        semanas = [
+            {
+                "semana_inicio": inicio,
+                "series": registros,
+                "carga_max": max((r.carga_kg for r in registros if r.carga_kg is not None), default=None),
+                "volume_carga": sum(r.repeticoes * (r.carga_kg or 0) for r in registros),
+            }
+            for inicio, registros in por_semana.items()
+        ]
+    return {"exercicios": [{"id": i, "nome": n} for i, n in exercicios], "semanas": semanas}
+
 def _month_starts(ate_mes_atual: date, n: int = 12) -> list[date]:
     """Retorna lista (ordem crescente) com o 1º dia de cada mês, dos últimos n meses."""
     y, m = ate_mes_atual.year, ate_mes_atual.month

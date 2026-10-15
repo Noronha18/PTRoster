@@ -87,3 +87,15 @@ async def ultima_execucao(
     return await controllers.ultima_execucao(
         db, aluno_id=aluno_id, treino_id=treino_id, trainer_id=resolve_tenant_filter(current_user)
     )
+
+
+@router.get("/{aluno_id}/evolucao", response_model=schemas.EvolucaoPublic)
+async def evolucao(
+    aluno_id: int,
+    exercicio_id: int | None = None,
+    current_user: Usuario = Depends(get_current_trainer),
+    db: AsyncSession = Depends(database.get_db)
+):
+    return await controllers.evolucao_exercicio(
+        db, aluno_id=aluno_id, exercicio_id=exercicio_id, trainer_id=resolve_tenant_filter(current_user)
+    )

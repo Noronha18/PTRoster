@@ -258,3 +258,55 @@ async def test_ultima_execucao_isolada_por_trainer(ac: AsyncClient, como_usuario
     como_usuario(TRAINER_B)
     res = await ac.get(f"/alunos/{aluno_id}/ultima-execucao", params={"treino_id": treino["id"]})
     assert res.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_evolucao_agrupa_por_semana(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    exercicio_id = treino["prescricoes"][0]["exercicio_id"]
+    await _execucao(ac, treino, [40, 40], aluno_id=aluno_id, data_hora="2026-10-05T10:00:00")  # segunda
+    await _execucao(ac, treino, [42.5], aluno_id=aluno_id, data_hora="2026-10-11T10:00:00")    # domingo, mesma semana
+    await _execucao(ac, treino, [45, None], aluno_id=aluno_id, data_hora="2026-10-12T10:00:00")  # semana seguinte
+
+    res = await ac.get(f"/alunos/{aluno_id}/evolucao", params={"exercicio_id": exercicio_id})
+
+    assert res.status_code == 200, res.text
+    corpo = res.json()
+    assert corpo["exercicios"] == [{"id": exercicio_id, "nome": "Supino reto"}]
+    s1, s2 = corpo["semanas"]
+    assert s1["semana_inicio"] == "2026-10-05"
+    assert [s["carga_kg"] for s in s1["series"]] == [40, 40, 42.5]
+    assert s1["carga_max"] == 42.5
+    assert s1["volume_carga"] == 10 * 40 + 10 * 40 + 10 * 42.5
+    assert s2["semana_inicio"] == "2026-10-12"
+    assert s2["carga_max"] == 45
+    assert s2["volume_carga"] == 450  # peso corporal entra com 0
+
+
+@pytest.mark.anyio
+async def test_evolucao_so_peso_corporal(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    await _execucao(ac, treino, [None], aluno_id=aluno_id)
+    exercicio_id = treino["prescricoes"][0]["exercicio_id"]
+    [semana] = (await ac.get(f"/alunos/{aluno_id}/evolucao", params={"exercicio_id": exercicio_id})).json()["semanas"]
+    assert semana["carga_max"] is None
+    assert semana["volume_carga"] == 0
+
+
+@pytest.mark.anyio
+async def test_historico_permanece_apos_excluir_o_plano(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    await _execucao(ac, treino, [40], aluno_id=aluno_id)
+    plano_id = (await ac.get(f"/alunos/{aluno_id}")).json()["planos_treino"][0]["id"]
+    assert (await ac.delete(f"/planos/{plano_id}")).status_code == 204
+
+    exercicio_id = treino["prescricoes"][0]["exercicio_id"]
+    corpo = (await ac.get(f"/alunos/{aluno_id}/evolucao", params={"exercicio_id": exercicio_id})).json()
+    assert len(corpo["semanas"]) == 1
+
+
+@pytest.mark.anyio
+async def test_evolucao_isolada_por_trainer(ac: AsyncClient, como_usuario):
+    aluno_id, _ = await _cenario(ac)
+    como_usuario(TRAINER_B)
+    assert (await ac.get(f"/alunos/{aluno_id}/evolucao")).status_code == 404
