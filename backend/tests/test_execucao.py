@@ -310,3 +310,50 @@ async def test_evolucao_isolada_por_trainer(ac: AsyncClient, como_usuario):
     aluno_id, _ = await _cenario(ac)
     como_usuario(TRAINER_B)
     assert (await ac.get(f"/alunos/{aluno_id}/evolucao")).status_code == 404
+
+
+@pytest.mark.anyio
+async def test_feed_mostra_delta_vs_sessao_anterior(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    await _execucao(ac, treino, [40, 40], data_hora="2026-10-05T10:00:00")
+    await _execucao(ac, treino, [42.5, 40], data_hora="2026-10-07T10:00:00")
+
+    como_usuario(TRAINER_A)
+    res = await ac.get("/atividade-recente")
+
+    assert res.status_code == 200, res.text
+    recente, primeira = res.json()
+    assert recente["aluno_nome"] == "Aluno Teste"
+    assert recente["treino_nome"] == "Treino A"
+    assert recente["registrado_por"] == "aluno"
+    assert recente["exercicios"] == [{
+        "exercicio_id": treino["prescricoes"][0]["exercicio_id"], "nome": "Supino reto",
+        "carga_max": 42.5, "delta_kg": 2.5,
+    }]
+    assert primeira["exercicios"][0]["delta_kg"] is None
+
+
+@pytest.mark.anyio
+async def test_feed_peso_corporal_sem_delta(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    await _execucao(ac, treino, [None], aluno_id=aluno_id, data_hora="2026-10-05T10:00:00")
+    await _execucao(ac, treino, [None], aluno_id=aluno_id, data_hora="2026-10-07T10:00:00")
+    [recente, _] = (await ac.get("/atividade-recente")).json()
+    assert recente["exercicios"][0]["carga_max"] is None
+    assert recente["exercicios"][0]["delta_kg"] is None
+
+
+@pytest.mark.anyio
+async def test_feed_isolado_por_trainer_e_fechado_ao_aluno(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    await _execucao(ac, treino, [40], aluno_id=aluno_id)
+    await ac.post("/sessoes/", json={"aluno_id": aluno_id, "realizada": True})  # check-in sem séries não entra
+
+    assert len((await ac.get("/atividade-recente")).json()) == 1
+
+    como_usuario(TRAINER_B)
+    assert (await ac.get("/atividade-recente")).json() == []
+
+    como_usuario(_aluno_logado(aluno_id))
+    assert (await ac.get("/atividade-recente")).status_code == 403

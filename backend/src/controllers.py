@@ -894,6 +894,65 @@ async def evolucao_exercicio(
         ]
     return {"exercicios": [{"id": i, "nome": n} for i, n in exercicios], "semanas": semanas}
 
+async def atividade_recente(db: AsyncSession, trainer_id: int | None = None, limit: int = 20) -> list[dict]:
+    """Últimas execuções com séries, com carga máxima por exercício e delta vs. a sessão anterior."""
+    stmt = (
+        select(models.SessaoTreino)
+        .options(
+            selectinload(models.SessaoTreino.aluno),
+            selectinload(models.SessaoTreino.treino),
+            selectinload(models.SessaoTreino.series).selectinload(models.RegistroSerie.exercicio),
+        )
+        .where(models.SessaoTreino.series.any())
+        .order_by(models.SessaoTreino.data_hora.desc(), models.SessaoTreino.id.desc())
+        .limit(limit)
+    )
+    if trainer_id is not None:
+        stmt = stmt.join(models.Aluno, models.SessaoTreino.aluno_id == models.Aluno.id).where(
+            models.Aluno.trainer_id == trainer_id
+        )
+    sessoes = list((await db.scalars(stmt)).all())
+    if not sessoes:
+        return []
+
+    # ponytail: lê o histórico inteiro dos alunos do feed; restringir por data se ficar lento
+    linhas = (await db.execute(
+        select(models.SessaoTreino.aluno_id, models.RegistroSerie.exercicio_id,
+               models.SessaoTreino.id, func.max(models.RegistroSerie.carga_kg))
+        .join(models.RegistroSerie, models.RegistroSerie.sessao_id == models.SessaoTreino.id)
+        .where(models.SessaoTreino.aluno_id.in_({s.aluno_id for s in sessoes}))
+        .group_by(models.SessaoTreino.aluno_id, models.RegistroSerie.exercicio_id,
+                  models.SessaoTreino.id, models.SessaoTreino.data_hora)
+        .order_by(models.SessaoTreino.data_hora, models.SessaoTreino.id)
+    )).all()
+    historico: dict[tuple[int, int], list[tuple[int, float | None]]] = defaultdict(list)
+    for aluno_id, exercicio_id, sessao_id, carga_max in linhas:
+        historico[(aluno_id, exercicio_id)].append((sessao_id, carga_max))
+
+    feed = []
+    for sessao in sessoes:
+        nomes = {}
+        for registro in sessao.series:
+            nomes.setdefault(registro.exercicio_id, registro.exercicio.nome)
+        exercicios = []
+        for exercicio_id, nome in nomes.items():
+            linha_tempo = historico[(sessao.aluno_id, exercicio_id)]
+            pos = next(i for i, (sid, _) in enumerate(linha_tempo) if sid == sessao.id)
+            carga = linha_tempo[pos][1]
+            anterior = linha_tempo[pos - 1][1] if pos > 0 else None
+            delta = round(carga - anterior, 2) if carga is not None and anterior is not None else None
+            exercicios.append({"exercicio_id": exercicio_id, "nome": nome, "carga_max": carga, "delta_kg": delta})
+        feed.append({
+            "sessao_id": sessao.id,
+            "aluno_id": sessao.aluno_id,
+            "aluno_nome": sessao.aluno.nome,
+            "treino_nome": sessao.treino.nome if sessao.treino else None,
+            "data_hora": sessao.data_hora,
+            "registrado_por": sessao.registrado_por,
+            "exercicios": exercicios,
+        })
+    return feed
+
 def _month_starts(ate_mes_atual: date, n: int = 12) -> list[date]:
     """Retorna lista (ordem crescente) com o 1º dia de cada mês, dos últimos n meses."""
     y, m = ate_mes_atual.year, ate_mes_atual.month

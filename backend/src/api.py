@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src import exceptions
-from src.routes import alunos, planos, pagamentos, sessoes, auth, exercicios, meu_perfil, admin, prescricoes, avisos
+from src.routes import alunos, planos, pagamentos, sessoes, auth, exercicios, meu_perfil, admin, prescricoes, avisos, atividade
 from src.config import settings # Importa as configurações
 
 # Configuração básica de logging
@@ -95,6 +95,7 @@ app.include_router(exercicios.router)
 app.include_router(pagamentos.router)
 app.include_router(sessoes.router)
 app.include_router(avisos.router)
+app.include_router(atividade.router)
 
 # --- SERVIR FRONTEND (PRODUÇÃO) ---
 # Verifica se a pasta static existe (criada no Docker build)
