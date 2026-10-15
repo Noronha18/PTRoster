@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, Text, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, Text, Float, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from src.database import Base
 from datetime import date, datetime
@@ -87,10 +87,18 @@ class SessaoTreino(Base):
     observacoes_performance = Column(Text, nullable=True)
     motivo_ausencia = Column(Text, nullable=True)
     tipo_atividade = Column(String, nullable=True)
+    treino_id = Column(Integer, ForeignKey('treinos.id', ondelete='SET NULL'), nullable=True)
+    registrado_por = Column(String, nullable=True)  # "aluno" ou "trainer"; nulo em sessões antigas
     
     # Relacionamentos
     aluno = relationship("Aluno", back_populates="sessoes_treino")
     plano_treino = relationship("PlanoTreino", back_populates="sessoes_executadas")
+    treino = relationship("Treino")
+    # passive_deletes: o banco apaga as séries (ON DELETE CASCADE) sem o ORM carregá-las
+    series = relationship(
+        "RegistroSerie", back_populates="sessao", cascade="all, delete-orphan",
+        passive_deletes=True, order_by="RegistroSerie.id"
+    )
 
 
 class PlanoTreino(Base):
@@ -157,3 +165,20 @@ class Prescricao(Base):
     @property
     def nome_exercicio(self):
         return self.exercicio.nome if self.exercicio else "Exercício Removido"
+
+
+class RegistroSerie(Base):
+    """Uma série executada. O histórico é por exercício e sobrevive à troca ou exclusão do plano."""
+    __tablename__ = 'registros_serie'
+    __table_args__ = (Index('ix_registros_serie_exercicio_sessao', 'exercicio_id', 'sessao_id'),)
+
+    id = Column(Integer, primary_key=True)
+    sessao_id = Column(Integer, ForeignKey('sessoes_treino.id', ondelete='CASCADE'), nullable=False, index=True)
+    exercicio_id = Column(Integer, ForeignKey('exercicios.id'), nullable=False)
+    prescricao_id = Column(Integer, ForeignKey('prescricoes.id', ondelete='SET NULL'), nullable=True)
+    numero_serie = Column(Integer, nullable=False)
+    repeticoes = Column(Integer, nullable=False)
+    carga_kg = Column(Float, nullable=True)  # nulo = peso corporal
+
+    sessao = relationship("SessaoTreino", back_populates="series")
+    exercicio = relationship("Exercicio")

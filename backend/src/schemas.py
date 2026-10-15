@@ -149,6 +149,8 @@ class SessaoTreinoCreate(BaseModel):
 
 class SessaoTreinoPublic(SessaoTreinoCreate):
     id: int
+    treino_id: Optional[int] = None
+    registrado_por: Optional[str] = None
     aviso: Optional[str] = None  # ex: pacote sem saldo no check-in
     model_config = ConfigDict(from_attributes=True)
 
@@ -158,6 +160,81 @@ class FrequenciaMensalPublic(BaseModel):
     sessoes_previstas: int
     sessoes_realizadas: int
     taxa_adesao: float
+
+# --- SCHEMAS DE EXECUÇÃO (registro por série) ---
+class SerieIn(BaseModel):
+    exercicio_id: int
+    prescricao_id: Optional[int] = None
+    numero_serie: int = Field(ge=1)
+    repeticoes: int = Field(ge=0)
+    carga_kg: Optional[float] = Field(default=None, ge=0)  # nulo = peso corporal
+
+class SeriePublic(SerieIn):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class ExecucaoCreate(BaseModel):
+    treino_id: int
+    aluno_id: Optional[int] = None  # obrigatório quando o trainer registra; ignorado para o aluno
+    data_hora: Optional[datetime] = None
+    observacoes_performance: Optional[str] = None
+    series: List[SerieIn] = Field(min_length=1)
+
+class SeriesUpdate(BaseModel):
+    series: List[SerieIn] = Field(min_length=1)
+
+class SessaoExecucaoPublic(BaseModel):
+    id: int
+    aluno_id: int
+    treino_id: Optional[int] = None
+    plano_treino_id: Optional[int] = None
+    data_hora: datetime
+    registrado_por: Optional[str] = None
+    observacoes_performance: Optional[str] = None
+    aviso: Optional[str] = None
+    series: List[SeriePublic]
+    model_config = ConfigDict(from_attributes=True)
+
+class SerieResumo(BaseModel):
+    numero_serie: int
+    repeticoes: int
+    carga_kg: Optional[float] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class UltimaExecucaoExercicio(BaseModel):
+    exercicio_id: int
+    sessao_id: int
+    data_hora: datetime
+    series: List[SerieResumo]
+
+class ExercicioRegistrado(BaseModel):
+    id: int
+    nome: str
+
+class SemanaEvolucao(BaseModel):
+    semana_inicio: date  # segunda-feira
+    series: List[SerieResumo]
+    carga_max: Optional[float] = None
+    volume_carga: float  # soma de reps × kg
+
+class EvolucaoPublic(BaseModel):
+    exercicios: List[ExercicioRegistrado]
+    semanas: List[SemanaEvolucao]
+
+class ExercicioAtividade(BaseModel):
+    exercicio_id: int
+    nome: str
+    carga_max: Optional[float] = None
+    delta_kg: Optional[float] = None  # vs. a sessão anterior do mesmo aluno no mesmo exercício
+
+class AtividadeRecente(BaseModel):
+    sessao_id: int
+    aluno_id: int
+    aluno_nome: str
+    treino_nome: Optional[str] = None
+    data_hora: datetime
+    registrado_por: Optional[str] = None
+    exercicios: List[ExercicioAtividade]
 
 # --- SCHEMAS DE ALUNO ---
 class AlunoBase(BaseModel):

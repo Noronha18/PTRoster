@@ -22,6 +22,11 @@ def hoje(agora: datetime | None = None) -> date:
     return (agora or datetime.now(timezone.utc)).astimezone(FUSO_BRASILIA).date()
 
 
+def agora(instante: datetime | None = None) -> datetime:
+    """Data e hora de Brasília sem fuso: as colunas DateTime do banco são naive."""
+    return (instante or datetime.now(timezone.utc)).astimezone(FUSO_BRASILIA).replace(tzinfo=None)
+
+
 def fim_programa(plano: models.PlanoTreino) -> date:
     return plano.data_inicio + timedelta(weeks=plano.duracao_semanas or 0)
 
