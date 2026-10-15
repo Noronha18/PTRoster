@@ -35,6 +35,25 @@ async def criar_sessao(
     return await controllers.registrar_sessao(db, payload, trainer_id=trainer_id, registrado_por_staff=is_staff)
 
 
+@router.post("/execucao", response_model=schemas.SessaoExecucaoPublic, status_code=201)
+async def registrar_execucao(
+    payload: schemas.ExecucaoCreate,
+    current_user: Usuario = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.role in ("trainer", "admin"):
+        if payload.aluno_id is None:
+            raise HTTPException(status_code=422, detail="Informe o aluno.")
+        return await controllers.registrar_execucao(
+            db, payload, aluno_id=payload.aluno_id, registrado_por="trainer",
+            trainer_id=resolve_tenant_filter(current_user),
+        )
+    if not current_user.aluno_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário não vinculado a um aluno.")
+    # aluno_id do payload é ignorado: o aluno só registra para si mesmo
+    return await controllers.registrar_execucao(db, payload, aluno_id=current_user.aluno_id, registrado_por="aluno")
+
+
 @router.get("/", response_model=list[schemas.SessaoTreinoPublic])
 async def listar_sessoes(
     db: AsyncSession = Depends(get_db),

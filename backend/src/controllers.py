@@ -585,21 +585,109 @@ async def registrar_sessao(
     # Sessões de treino independente registradas pelo próprio aluno não debitam
     aula_contabilizada = payload.realizada or (not payload.realizada and not payload.precisa_reposicao)
 
-    aviso = None
-    if (registrado_por_staff and aula_contabilizada
-            and aluno.modalidade == "presencial" and aluno.tipo_pagamento == "pacote"):
-        # UPDATE condicional: atômico sob concorrência e nunca deixa o saldo negativo
-        res_debito = await db.execute(
-            update(models.Aluno)
-            .where(models.Aluno.id == aluno.id, models.Aluno.saldo_aulas > 0)
-            .values(saldo_aulas=models.Aluno.saldo_aulas - 1)
-        )
-        if res_debito.rowcount == 0:
-            aviso = "Aluno de pacote sem saldo de aulas: sessão registrada sem débito."
+    sessao.registrado_por = "trainer" if registrado_por_staff else "aluno"
+    aviso = await _debitar_aula(db, aluno) if registrado_por_staff and aula_contabilizada else None
 
     db.add(sessao)
     await db.commit()
     await db.refresh(sessao)
+    sessao.aviso = aviso
+    return sessao
+
+async def _debitar_aula(db: AsyncSession, aluno: models.Aluno) -> str | None:
+    """Debita uma aula de aluno presencial de pacote. Devolve aviso quando não havia saldo."""
+    if aluno.modalidade != "presencial" or aluno.tipo_pagamento != "pacote":
+        return None
+    # UPDATE condicional: atômico sob concorrência e nunca deixa o saldo negativo
+    res_debito = await db.execute(
+        update(models.Aluno)
+        .where(models.Aluno.id == aluno.id, models.Aluno.saldo_aulas > 0)
+        .values(saldo_aulas=models.Aluno.saldo_aulas - 1)
+    )
+    if res_debito.rowcount == 0:
+        return "Aluno de pacote sem saldo de aulas: sessão registrada sem débito."
+    return None
+
+
+# --- EXECUÇÃO DE TREINO (registro por série) ---
+
+def _hora_brasilia(dt: datetime | None) -> datetime:
+    """Colunas DateTime são naive: grava sempre no horário de Brasília."""
+    if dt is None:
+        return consultoria.agora()
+    return consultoria.agora(dt) if dt.tzinfo else dt
+
+
+async def _aluno_do_tenant(db: AsyncSession, aluno_id: int, trainer_id: int | None) -> models.Aluno:
+    stmt = select(models.Aluno).where(models.Aluno.id == aluno_id)
+    if trainer_id is not None:
+        stmt = stmt.where(models.Aluno.trainer_id == trainer_id)
+    aluno = await db.scalar(stmt)
+    if not aluno:
+        raise exceptions.ResourceNotFoundError(f"Aluno {aluno_id} não encontrado")
+    return aluno
+
+
+async def _validar_series(db: AsyncSession, series: list[schemas.SerieIn], treino_id: int | None) -> None:
+    ids_exercicio = {s.exercicio_id for s in series}
+    existentes = set((await db.scalars(
+        select(models.Exercicio.id).where(models.Exercicio.id.in_(ids_exercicio))
+    )).all())
+    if existentes != ids_exercicio:
+        raise exceptions.BusinessRuleError("Exercício inexistente na série informada.")
+
+    ids_prescricao = {s.prescricao_id for s in series if s.prescricao_id is not None}
+    if ids_prescricao:
+        stmt = select(models.Prescricao.id).where(models.Prescricao.id.in_(ids_prescricao))
+        if treino_id is not None:
+            stmt = stmt.where(models.Prescricao.treino_id == treino_id)
+        if set((await db.scalars(stmt)).all()) != ids_prescricao:
+            raise exceptions.BusinessRuleError("Prescrição não pertence a este treino.")
+
+
+async def _carregar_execucao(db: AsyncSession, sessao_id: int) -> models.SessaoTreino:
+    return await db.scalar(
+        select(models.SessaoTreino)
+        .options(selectinload(models.SessaoTreino.series))
+        .where(models.SessaoTreino.id == sessao_id)
+        .execution_options(populate_existing=True)
+    )
+
+
+async def registrar_execucao(
+    db: AsyncSession,
+    payload: schemas.ExecucaoCreate,
+    aluno_id: int,
+    registrado_por: str,
+    trainer_id: int | None = None,
+) -> models.SessaoTreino:
+    aluno = await _aluno_do_tenant(db, aluno_id, trainer_id)
+    treino = await db.scalar(
+        select(models.Treino)
+        .join(models.PlanoTreino, models.Treino.plano_id == models.PlanoTreino.id)
+        .where(models.Treino.id == payload.treino_id, models.PlanoTreino.aluno_id == aluno.id)
+    )
+    if not treino:
+        raise exceptions.BusinessRuleError("Treino inválido para este aluno.")
+    # Valida tudo antes de gravar: série inválida não deixa sessão pela metade
+    await _validar_series(db, payload.series, treino.id)
+
+    sessao = models.SessaoTreino(
+        aluno_id=aluno.id,
+        plano_treino_id=treino.plano_id,
+        treino_id=treino.id,
+        data_hora=_hora_brasilia(payload.data_hora),
+        realizada=True,
+        observacoes_performance=payload.observacoes_performance,
+        registrado_por=registrado_por,
+        series=[models.RegistroSerie(**s.model_dump()) for s in payload.series],
+    )
+    # Regra atual: só o registro feito pelo trainer debita saldo
+    aviso = await _debitar_aula(db, aluno) if registrado_por == "trainer" else None
+    db.add(sessao)
+    await db.commit()
+
+    sessao = await _carregar_execucao(db, sessao.id)
     sessao.aviso = aviso
     return sessao
 

@@ -62,3 +62,102 @@ async def test_agora_usa_horario_de_brasilia():
     from datetime import datetime, timezone
     utc = datetime(2026, 10, 16, 1, 30, tzinfo=timezone.utc)  # 22h30 do dia 15 em Brasília
     assert consultoria.agora(utc) == datetime(2026, 10, 15, 22, 30)
+
+
+@pytest.mark.anyio
+async def test_aluno_registra_execucao_com_series(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    presc = treino["prescricoes"][0]
+    como_usuario(_aluno_logado(aluno_id))
+
+    res = await ac.post("/sessoes/execucao", json={"treino_id": treino["id"], "series": _series(presc, [40, 40, 42.5])})
+
+    assert res.status_code == 201, res.text
+    sessao = res.json()
+    assert sessao["registrado_por"] == "aluno"
+    assert sessao["treino_id"] == treino["id"]
+    assert sessao["aluno_id"] == aluno_id
+    assert [s["carga_kg"] for s in sessao["series"]] == [40, 40, 42.5]
+
+
+@pytest.mark.anyio
+async def test_execucao_sem_data_grava_horario_de_brasilia(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    res = await ac.post("/sessoes/execucao", json={"treino_id": treino["id"], "series": _series(treino["prescricoes"][0], [40])})
+    assert res.status_code == 201, res.text
+    assert res.json()["data_hora"][:10] == consultoria.hoje().isoformat()
+
+
+@pytest.mark.anyio
+async def test_debito_so_quando_trainer_registra_aluno_de_pacote(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac, tipo_pagamento="pacote", saldo_aulas=5)
+    series = _series(treino["prescricoes"][0], [40])
+
+    res = await ac.post("/sessoes/execucao", json={"aluno_id": aluno_id, "treino_id": treino["id"], "series": series})
+    assert res.status_code == 201, res.text
+    assert res.json()["registrado_por"] == "trainer"
+
+    como_usuario(_aluno_logado(aluno_id))
+    assert (await ac.post("/sessoes/execucao", json={"treino_id": treino["id"], "series": series})).status_code == 201
+
+    como_usuario(TRAINER_A)
+    assert (await ac.get(f"/alunos/{aluno_id}")).json()["saldo_aulas"] == 4
+
+
+@pytest.mark.anyio
+async def test_trainer_precisa_informar_aluno(ac: AsyncClient):
+    _, treino = await _cenario(ac)
+    res = await ac.post("/sessoes/execucao", json={"treino_id": treino["id"], "series": _series(treino["prescricoes"][0], [40])})
+    assert res.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_serie_invalida_nao_grava_nada(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    series = _series(treino["prescricoes"][0], [40]) + [
+        {"exercicio_id": 9999, "numero_serie": 1, "repeticoes": 10, "carga_kg": 10}
+    ]
+    res = await ac.post("/sessoes/execucao", json={"aluno_id": aluno_id, "treino_id": treino["id"], "series": series})
+    assert res.status_code == 409
+    assert (await ac.get("/sessoes/", params={"aluno_id": aluno_id})).json() == []
+
+
+@pytest.mark.anyio
+async def test_treino_de_outro_aluno_e_rejeitado(ac: AsyncClient, como_usuario):
+    _, treino_do_outro = await _cenario(ac)
+    aluno_id = await _criar_aluno(ac)
+    como_usuario(_aluno_logado(aluno_id))
+    res = await ac.post("/sessoes/execucao", json={
+        "treino_id": treino_do_outro["id"], "series": _series(treino_do_outro["prescricoes"][0], [40]),
+    })
+    assert res.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_trainer_de_outro_tenant_nao_registra(ac: AsyncClient, como_usuario):
+    aluno_id, treino = await _cenario(ac)
+    como_usuario(TRAINER_B)
+    res = await ac.post("/sessoes/execucao", json={
+        "aluno_id": aluno_id, "treino_id": treino["id"], "series": _series(treino["prescricoes"][0], [40]),
+    })
+    assert res.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_trava_de_consultoria_bloqueia_execucao_do_aluno(ac: AsyncClient, como_usuario):
+    vencido = (consultoria.hoje() - timedelta(days=1)).isoformat()
+    aluno_id, treino = await _cenario(
+        ac, modalidade="consultoria", data_vencimento_consultoria=vencido, bloquear_apos_vencimento=True
+    )
+    como_usuario(_aluno_logado(aluno_id))
+    res = await ac.post("/sessoes/execucao", json={"treino_id": treino["id"], "series": _series(treino["prescricoes"][0], [40])})
+    assert res.status_code == 403
+    assert res.json()["message"] == "consultoria_vencida"
+
+
+@pytest.mark.anyio
+async def test_excluir_aluno_com_series_registradas(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    await ac.post("/sessoes/execucao", json={"aluno_id": aluno_id, "treino_id": treino["id"], "series": _series(treino["prescricoes"][0], [40])})
+    assert (await ac.delete(f"/alunos/{aluno_id}")).status_code == 204
