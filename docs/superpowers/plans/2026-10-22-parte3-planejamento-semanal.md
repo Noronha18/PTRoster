@@ -55,7 +55,7 @@
 - Produces: schemas com `vezes_por_semana: int = Field(1, ge=1, le=7)` e `dias_sugeridos: list[int]` (validador 0..6, sem duplicatas).
 - Produces: `TreinoPublic` expõe os dois campos (o portal e o painel dependem disso).
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [x] **Step 1: Escrever o teste que falha**
 
 Em `backend/tests/test_semana.py`, criar helpers e o primeiro teste:
 
@@ -112,11 +112,11 @@ async def test_treino_guarda_planejamento_semanal(ac: AsyncClient):
     assert clone["treinos"][0]["dias_sugeridos"] == [0, 3]
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 `... -m pytest tests/test_semana.py::test_treino_guarda_planejamento_semanal -q` → falha (campo inexistente/validação).
 
-- [ ] **Step 3: Implementar models + schemas + controllers + migração**
+- [x] **Step 3: Implementar models + schemas + controllers + migração**
 
 `models.py` (importar `JSON`):
 
@@ -178,9 +178,9 @@ op.add_column('treinos', sa.Column('dias_sugeridos', sa.JSON(), nullable=False, 
 # downgrade: drop_column
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `feat: planejamento semanal por treino (vezes e dias sugeridos)`
 
@@ -202,7 +202,7 @@ op.add_column('treinos', sa.Column('dias_sugeridos', sa.JSON(), nullable=False, 
 - Produces: `ExercicioBase.grupo_muscular` normalizado; inválido → 422.
 - Produces: `criar_exercicio` rejeita nome duplicado ignorando caixa com 409.
 
-- [ ] **Step 1: Escrever testes que falham**
+- [x] **Step 1: Escrever testes que falham**
 
 ```python
 @pytest.mark.anyio
@@ -222,9 +222,9 @@ async def test_nome_de_exercicio_unico_ignorando_caixa(ac: AsyncClient):
     assert dup.status_code == 409
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 `grupos_musculares.py`:
 
@@ -285,9 +285,9 @@ Seed: trocar os 11 `"Pernas"` pelos grupos acima. Atualizar também o grupo de e
 
 Testes existentes: `Peitoral` → `Peito`; `Braços` → `Bíceps`; `Pernas` → `Quadríceps`; `Teste` → `Outros`.
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `feat: padroniza grupos musculares e nome único de exercício`
 
@@ -336,7 +336,7 @@ Regras:
 - Trainer: `get_aluno(..., trainer_id=resolve_tenant_filter)` garante 404 para outro tenant.
 - Aluno: `current_user.aluno_id`; `dependencies=[Depends(exigir_acesso_treino)]`.
 
-- [ ] **Step 1: Escrever testes que falham**
+- [x] **Step 1: Escrever testes que falham**
 
 Cobrir:
 1. Planejado com `vezes_por_semana=2` e 2 exercícios de 3 séries → 12 séries do grupo.
@@ -348,9 +348,9 @@ Cobrir:
 
 Usar `POST /sessoes/execucao` com `data_hora` explícito (o schema aceita) e `_series` por prescrição.
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
-- [ ] **Step 3: Implementar `semana.py`, schemas, controller e rotas**
+- [x] **Step 3: Implementar `semana.py`, schemas, controller e rotas**
 
 Schemas:
 
@@ -416,9 +416,9 @@ async def minha_semana(
     )
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `feat: API de planejamento semanal com volume por grupo muscular`
 
@@ -440,7 +440,7 @@ async def minha_semana(
 - Produces: `SemanaAluno({ alunoId })` com navegação de semana, tabela de aderência e tabela de volume.
 - Produces: modal envia `vezes_por_semana`/`dias_sugeridos` e mostra "Volume semanal planejado".
 
-- [ ] **Step 1: Constante + service**
+- [x] **Step 1: Constante + service**
 
 `grupos.js` com a lista canônica. `api.js`:
 
@@ -449,11 +449,11 @@ semana: (id, ref) =>
     apiFetch(`/alunos/${id}/semana${ref ? `?ref=${ref}` : ''}`),
 ```
 
-- [ ] **Step 2: Biblioteca com select**
+- [x] **Step 2: Biblioteca com select**
 
 Substituir o `<input>` de grupo por `<select required>` com `GRUPOS_MUSCULARES`; placeholder "Selecione..."; estado inicial `''`.
 
-- [ ] **Step 3: Modal do plano**
+- [x] **Step 3: Modal do plano**
 
 - Estado inicial de treino: `{ nome: 'Treino A', vezes_por_semana: 1, dias_sugeridos: [], prescricoes: [] }`; o mesmo em `handleAddTreino`.
 - Ao adicionar da biblioteca, guardar `grupo_muscular: ex.grupo_muscular` na prescrição.
@@ -464,7 +464,7 @@ Substituir o `<input>` de grupo por `<select required>` com `GRUPOS_MUSCULARES`;
   - painel "Volume semanal planejado" agregando todos os treinos: `séries × vezes_por_semana`, por grupo; total de séries.
 - Não alterar o payload de prescrição além do necessário; `...t` já envia os campos novos.
 
-- [ ] **Step 4: `SemanaAluno` + aba no detalhe**
+- [x] **Step 4: `SemanaAluno` + aba no detalhe**
 
 `SemanaAluno`:
 - `ref` inicial = hoje local (`YYYY-MM-DD`).
@@ -480,11 +480,11 @@ Substituir o `<input>` de grupo por `<select required>` com `GRUPOS_MUSCULARES`;
 - `aba === 'semana'` → `<SemanaAluno alunoId={alunoId} />`; senão, o conteúdo atual (planos + evolução + histórico).
 - `handleEditPlano` inclui `vezes_por_semana: t.vezes_por_semana ?? 1`, `dias_sugeridos: t.dias_sugeridos ?? []` e `grupo_muscular: p.exercicio?.grupo_muscular`.
 
-- [ ] **Step 5: Lint/build**
+- [x] **Step 5: Lint/build**
 
 `cd frontend && npm run lint && npm run build`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 `feat: painel com planejamento semanal e volume por grupo`
 
@@ -503,7 +503,7 @@ Substituir o `<input>` de grupo por `<select required>` com `GRUPOS_MUSCULARES`;
 - Produces: Dashboard usa `semana.treino_sugerido_hoje` e `semana.treinos`.
 - Produces: `Treinos` lê `useSearchParams().get('treino')` e seleciona o índice.
 
-- [ ] **Step 1: Hook**
+- [x] **Step 1: Hook**
 
 ```js
 import { useCallback, useState } from 'react';
@@ -529,7 +529,7 @@ export function useSemana() {
 }
 ```
 
-- [ ] **Step 2: Dashboard**
+- [x] **Step 2: Dashboard**
 
 - Chamar `buscarSemana()` no `useEffect` inicial.
 - Badge: `sessaoHoje` → "Presença Confirmada"; senão `treinoSugerido` → "Treino de Hoje"; senão "Sem Plano".
@@ -538,7 +538,7 @@ export function useSemana() {
 - Links: treino → `/treinos?treino=${id}`; check-in → `/checkin`.
 - Abaixo de "Esta Semana", linha de progresso por treino: `A 1/2 · B 0/1`, verde quando `feitas >= vezes_por_semana`; se `semana` nulo, não renderiza.
 
-- [ ] **Step 3: Treinos com query param**
+- [x] **Step 3: Treinos com query param**
 
 ```js
 import { useSearchParams } from 'react-router-dom';
@@ -552,11 +552,11 @@ useEffect(() => {
 }, [searchParams, planoAtivo]);
 ```
 
-- [ ] **Step 4: Testes/build**
+- [x] **Step 4: Testes/build**
 
 `npm test` e `npm run build`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `feat: portal com treino sugerido e progresso semanal`
 
@@ -564,8 +564,8 @@ useEffect(() => {
 
 ### Task 6: Verificação final
 
-- [ ] Rodar a suíte completa do backend.
-- [ ] Rodar lint/build do painel.
-- [ ] Rodar testes/build do portal.
-- [ ] Revisar `git diff` (sem arquivos temporários, sem `__pycache__`).
-- [ ] Commits separados por task, com o trailer combinado.
+- [x] Rodar a suíte completa do backend.
+- [x] Rodar lint/build do painel.
+- [x] Rodar testes/build do portal.
+- [x] Revisar `git diff` (sem arquivos temporários, sem `__pycache__`).
+- [x] Commits separados por task, com o trailer combinado.
