@@ -76,7 +76,7 @@ async def test_desativacao_automatica_planos(ac: AsyncClient):
 @pytest.mark.anyio
 async def test_clonagem_de_plano(ac: AsyncClient):
     # 1. Criar Aluno A com um plano e exercícios
-    res_ex = await ac.post("/exercicios/", json={"nome": f"Ex Clonagem {random.randint(0,1000)}", "grupo_muscular": "Braços"})
+    res_ex = await ac.post("/exercicios/", json={"nome": f"Ex Clonagem {random.randint(0,1000)}", "grupo_muscular": "Bíceps"})
     ex_id = res_ex.json()["id"]
 
     aluno_a_id = (await ac.post("/alunos/", json={"nome": "Aluno A", "cpf": gerar_cpf_valido()})).json()["id"]
@@ -110,7 +110,7 @@ async def test_clonagem_de_plano(ac: AsyncClient):
 @pytest.mark.anyio
 async def test_edicao_avancada_patch(ac: AsyncClient):
     # 1. Criar setup inicial
-    res_ex1 = await ac.post("/exercicios/", json={"nome": f"Ex Patch 1 {random.randint(0,1000)}", "grupo_muscular": "Pernas"})
+    res_ex1 = await ac.post("/exercicios/", json={"nome": f"Ex Patch 1 {random.randint(0,1000)}", "grupo_muscular": "Quadríceps"})
     ex1_id = res_ex1.json()["id"]
     
     aluno_id = (await ac.post("/alunos/", json={"nome": "Aluno Patch", "cpf": gerar_cpf_valido()})).json()["id"]

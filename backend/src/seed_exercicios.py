@@ -23,19 +23,19 @@ exercicios_base = [
     {"nome": "Remada Unilateral (Serrote)", "grupo_muscular": "Costas", "video_url": "https://www.youtube.com/watch?v=K25eTWoEOWU"},
 
     # PERNAS (QUADRÍCEPS)
-    {"nome": "Agachamento Livre Barra", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=rM6SDUdl9fs"},
-    {"nome": "Leg Press 45º", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=waAxlYvtCcI"},
-    {"nome": "Cadeira Extensora", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=RHgqvYAed_8"},
-    {"nome": "Afundo com Halteres", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=mPtTzNYAHi0"},
-    {"nome": "Hack Squat", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=Whp712OHPl8"},
+    {"nome": "Agachamento Livre Barra", "grupo_muscular": "Quadríceps", "video_url": "https://www.youtube.com/watch?v=rM6SDUdl9fs"},
+    {"nome": "Leg Press 45º", "grupo_muscular": "Quadríceps", "video_url": "https://www.youtube.com/watch?v=waAxlYvtCcI"},
+    {"nome": "Cadeira Extensora", "grupo_muscular": "Quadríceps", "video_url": "https://www.youtube.com/watch?v=RHgqvYAed_8"},
+    {"nome": "Afundo com Halteres", "grupo_muscular": "Quadríceps", "video_url": "https://www.youtube.com/watch?v=mPtTzNYAHi0"},
+    {"nome": "Hack Squat", "grupo_muscular": "Quadríceps", "video_url": "https://www.youtube.com/watch?v=Whp712OHPl8"},
 
     # PERNAS (POSTERIOR/GLÚTEO)
-    {"nome": "Stiff Barra", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=BHfY5-jGNDA"},
-    {"nome": "Mesa Flexora", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=8Nat6GRiEoc"},
-    {"nome": "Cadeira Flexora", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=e0_xHkXw350"},
-    {"nome": "Elevação Pélvica", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=kvmT_ZlgVI0"},
-    {"nome": "Cadeira Abdutora", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=50qHGus1TZk"},
-    {"nome": "Cadeira Adutora", "grupo_muscular": "Pernas", "video_url": "https://www.youtube.com/watch?v=goQVyEGMYMM"},
+    {"nome": "Stiff Barra", "grupo_muscular": "Posterior", "video_url": "https://www.youtube.com/watch?v=BHfY5-jGNDA"},
+    {"nome": "Mesa Flexora", "grupo_muscular": "Posterior", "video_url": "https://www.youtube.com/watch?v=8Nat6GRiEoc"},
+    {"nome": "Cadeira Flexora", "grupo_muscular": "Posterior", "video_url": "https://www.youtube.com/watch?v=e0_xHkXw350"},
+    {"nome": "Elevação Pélvica", "grupo_muscular": "Glúteos", "video_url": "https://www.youtube.com/watch?v=kvmT_ZlgVI0"},
+    {"nome": "Cadeira Abdutora", "grupo_muscular": "Glúteos", "video_url": "https://www.youtube.com/watch?v=50qHGus1TZk"},
+    {"nome": "Cadeira Adutora", "grupo_muscular": "Glúteos", "video_url": "https://www.youtube.com/watch?v=goQVyEGMYMM"},
 
     # OMBROS (DELTOIDES)
     {"nome": "Desenvolvimento Halteres", "grupo_muscular": "Ombros", "video_url": "https://www.youtube.com/watch?v=eufDL9MmF8A"},
@@ -91,10 +91,14 @@ async def _run_seed(db: AsyncSession):
         if existente is None:
             db.add(Exercicio(**ex_data))
             novos += 1
-        elif not existente.video_url and ex_data.get("video_url"):
-            # Preenche vídeo em exercícios já cadastrados que ainda não têm
-            existente.video_url = ex_data["video_url"]
-            videos_atualizados += 1
+        else:
+            if not existente.video_url and ex_data.get("video_url"):
+                # Preenche vídeo em exercícios já cadastrados que ainda não têm
+                existente.video_url = ex_data["video_url"]
+                videos_atualizados += 1
+            # Corrige grupos legados (ex: "Pernas") para a lista canônica
+            if existente.grupo_muscular != ex_data["grupo_muscular"]:
+                existente.grupo_muscular = ex_data["grupo_muscular"]
 
     await db.commit()
     print(f"✅ Sucesso! {novos} novos exercícios adicionados, {videos_atualizados} vídeos preenchidos.")

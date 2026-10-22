@@ -53,7 +53,7 @@ async def test_fluxo_aluno_e_plano(ac: AsyncClient):
     # 2. Criar Exercício Base para a prescrição
     exercicio_payload = {
         "nome": f"Exercício Teste {random.randint(0, 10000)}",
-        "grupo_muscular": "Peitoral"
+        "grupo_muscular": "Peito"
     }
     res_ex = await ac.post("/exercicios/", json=exercicio_payload)
     ex_id = res_ex.json()["id"] if res_ex.status_code == 201 else 1

@@ -4,10 +4,12 @@ import secrets
 from collections import defaultdict
 from datetime import datetime, date, timedelta
 from sqlalchemy import select, func, or_, and_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any
-from src import models, schemas, exceptions, consultoria
+from src import models, schemas, exceptions, consultoria, semana
+from src.grupos_musculares import GRUPOS_MUSCULARES, ORDEM_GRUPO, normalizar_grupo
 from src.security import get_password_hash
 import logging
 
@@ -884,6 +886,155 @@ async def evolucao_exercicio(
         ]
     return {"exercicios": [{"id": i, "nome": n} for i, n in exercicios], "semanas": semanas}
 
+async def _plano_ativo_do_aluno(db: AsyncSession, aluno_id: int) -> models.PlanoTreino | None:
+    stmt = (
+        select(models.PlanoTreino)
+        .options(
+            selectinload(models.PlanoTreino.treinos)
+            .selectinload(models.Treino.prescricoes)
+            .selectinload(models.Prescricao.exercicio)
+        )
+        .where(models.PlanoTreino.aluno_id == aluno_id, models.PlanoTreino.esta_ativo)
+        .order_by(models.PlanoTreino.data_inicio.desc(), models.PlanoTreino.id.desc())
+        .limit(1)
+    )
+    return await db.scalar(stmt)
+
+
+async def _sessoes_por_treino(
+    db: AsyncSession, aluno_id: int, inicio: datetime, fim: datetime
+) -> tuple[dict[int, int], dict[int, set[int]]]:
+    """Sessões realizadas com treino na janela, agrupadas por treino e weekday."""
+    linhas = (await db.execute(
+        select(models.SessaoTreino.treino_id, models.SessaoTreino.data_hora)
+        .where(
+            models.SessaoTreino.aluno_id == aluno_id,
+            models.SessaoTreino.realizada.is_(True),
+            models.SessaoTreino.treino_id.isnot(None),
+            models.SessaoTreino.data_hora >= inicio,
+            models.SessaoTreino.data_hora < fim,
+        )
+    )).all()
+    feitas: dict[int, int] = defaultdict(int)
+    dias: dict[int, set[int]] = defaultdict(set)
+    for treino_id, data_hora in linhas:
+        feitas[treino_id] += 1
+        dias[treino_id].add(data_hora.weekday())
+    return dict(feitas), dict(dias)
+
+
+async def _series_por_grupo(
+    db: AsyncSession, aluno_id: int, inicio: datetime, fim: datetime
+) -> dict[str, int]:
+    """Séries registradas na janela, agrupadas pelo grupo canônico do exercício."""
+    linhas = (await db.execute(
+        select(models.Exercicio.grupo_muscular, func.count(models.RegistroSerie.id))
+        .join(
+            models.RegistroSerie,
+            models.RegistroSerie.exercicio_id == models.Exercicio.id,
+        )
+        .join(
+            models.SessaoTreino,
+            models.RegistroSerie.sessao_id == models.SessaoTreino.id,
+        )
+        .where(
+            models.SessaoTreino.aluno_id == aluno_id,
+            models.SessaoTreino.data_hora >= inicio,
+            models.SessaoTreino.data_hora < fim,
+        )
+        .group_by(models.Exercicio.grupo_muscular)
+    )).all()
+    volumes: dict[str, int] = defaultdict(int)
+    for grupo, quantidade in linhas:
+        volumes[normalizar_grupo(grupo) or "Outros"] += quantidade
+    return dict(volumes)
+
+
+async def resumo_semana(
+    db: AsyncSession,
+    aluno_id: int,
+    ref: date | None = None,
+    trainer_id: int | None = None,
+    incluir_sugestao: bool = False,
+) -> dict:
+    """Aderência e volume da semana (segunda a domingo) para o painel e o portal."""
+    await _aluno_do_tenant(db, aluno_id, trainer_id)
+
+    ref = ref or consultoria.hoje()
+    inicio = semana.inicio_semana(ref)
+    fim = inicio + timedelta(days=6)
+    inicio_dt = datetime.combine(inicio, datetime.min.time())
+    fim_dt = datetime.combine(inicio + timedelta(days=7), datetime.min.time())
+
+    plano = await _plano_ativo_do_aluno(db, aluno_id)
+    feitas, dias = await _sessoes_por_treino(db, aluno_id, inicio_dt, fim_dt)
+    realizado = await _series_por_grupo(db, aluno_id, inicio_dt, fim_dt)
+
+    inicio_4 = inicio - timedelta(weeks=3)
+    quatro_semanas = await _series_por_grupo(
+        db, aluno_id, datetime.combine(inicio_4, datetime.min.time()), fim_dt
+    )
+
+    planejado = semana.volume_planejado(plano)
+    grupos = sorted(
+        set(planejado) | set(realizado) | set(quatro_semanas),
+        key=lambda grupo: (ORDEM_GRUPO.get(grupo, len(GRUPOS_MUSCULARES)), grupo),
+    )
+    volumes = [
+        {
+            "grupo": grupo,
+            "planejado": planejado.get(grupo, 0),
+            "realizado": realizado.get(grupo, 0),
+            "media_4_semanas": round(quatro_semanas.get(grupo, 0) / 4, 1),
+        }
+        for grupo in grupos
+    ]
+
+    treinos = [
+        {
+            "treino_id": treino.id,
+            "treino_nome": treino.nome,
+            "vezes_por_semana": treino.vezes_por_semana or 1,
+            "dias_sugeridos": treino.dias_sugeridos or [],
+            "feitas": feitas.get(treino.id, 0),
+            "dias_feitos": sorted(dias.get(treino.id, set())),
+        }
+        for treino in (plano.treinos if plano else [])
+    ]
+
+    resposta = {
+        "semana_inicio": inicio,
+        "semana_fim": fim,
+        "treinos": treinos,
+        "volumes": volumes,
+    }
+
+    if incluir_sugestao:
+        hoje = consultoria.hoje()
+        inicio_hoje = semana.inicio_semana(hoje)
+        if inicio_hoje == inicio:
+            feitas_hoje = feitas
+        else:
+            feitas_hoje, _ = await _sessoes_por_treino(
+                db,
+                aluno_id,
+                datetime.combine(inicio_hoje, datetime.min.time()),
+                datetime.combine(inicio_hoje + timedelta(days=7), datetime.min.time()),
+            )
+        sugestao = semana.treino_sugerido(plano, hoje, feitas_hoje)
+        resposta["treino_sugerido_hoje"] = (
+            {
+                "treino_id": sugestao[0].id,
+                "treino_nome": sugestao[0].nome,
+                "motivo": sugestao[1],
+            }
+            if sugestao
+            else None
+        )
+
+    return resposta
+
+
 async def atividade_recente(db: AsyncSession, trainer_id: int | None = None, limit: int = 20) -> list[dict]:
     """Últimas execuções com séries, com carga máxima por exercício e delta vs. a sessão anterior."""
     stmt = (
@@ -1121,7 +1272,9 @@ async def criar_plano_treino(db: AsyncSession, aluno_id: int | None, plano_in: s
         novo_treino = models.Treino(
             plano_id=novo_plano.id,
             nome=treino_data.nome,
-            ordem=t_idx
+            ordem=t_idx,
+            vezes_por_semana=treino_data.vezes_por_semana,
+            dias_sugeridos=treino_data.dias_sugeridos,
         )
         db.add(novo_treino)
         await db.flush()
@@ -1204,7 +1357,9 @@ async def clonar_plano_treino(db: AsyncSession, plano_origem_id: int, novo_aluno
         novo_treino = models.Treino(
             plano_id=novo_plano.id,
             nome=treino_origem.nome,
-            ordem=treino_origem.ordem
+            ordem=treino_origem.ordem,
+            vezes_por_semana=treino_origem.vezes_por_semana,
+            dias_sugeridos=treino_origem.dias_sugeridos,
         )
         db.add(novo_treino)
         await db.flush()
@@ -1285,6 +1440,10 @@ async def atualizar_plano_treino(db: AsyncSession, plano_id: int, payload: schem
                 treino = treinos_atuais_map[t_data.id]
                 treino.nome = t_data.nome
                 treino.ordem = i
+                if t_data.vezes_por_semana is not None:
+                    treino.vezes_por_semana = t_data.vezes_por_semana
+                if t_data.dias_sugeridos is not None:
+                    treino.dias_sugeridos = t_data.dias_sugeridos
 
                 # Sincronizar Prescrições
                 pres_atuais_map = {p.id: p for p in treino.prescricoes}
@@ -1306,7 +1465,13 @@ async def atualizar_plano_treino(db: AsyncSession, plano_id: int, payload: schem
                         db.add(nova_p)
             else:
                 # Criar novo treino
-                novo_treino = models.Treino(plano_id=plano.id, nome=t_data.nome, ordem=i)
+                novo_treino = models.Treino(
+                    plano_id=plano.id,
+                    nome=t_data.nome,
+                    ordem=i,
+                    vezes_por_semana=t_data.vezes_por_semana or 1,
+                    dias_sugeridos=t_data.dias_sugeridos or [],
+                )
                 plano.treinos.append(novo_treino)
                 db.add(novo_treino)
                 await db.flush() # Para ganhar o ID do novo treino
@@ -1391,7 +1556,10 @@ async def listar_exercicios(db: AsyncSession):
     return result.scalars().all()
 
 async def criar_exercicio(db: AsyncSession, exercicio_in: schemas.ExercicioCreate):
-    stmt = select(models.Exercicio).where(models.Exercicio.nome == exercicio_in.nome)
+    # Unicidade ignora caixa: "Supino reto" e "Supino Reto" são o mesmo exercício.
+    stmt = select(models.Exercicio).where(
+        func.lower(models.Exercicio.nome) == exercicio_in.nome.lower()
+    )
     result = await db.execute(stmt)
     if result.scalar_one_or_none():
         raise exceptions.BusinessRuleError(f"Exercício '{exercicio_in.nome}' já cadastrado.")
@@ -1402,6 +1570,9 @@ async def criar_exercicio(db: AsyncSession, exercicio_in: schemas.ExercicioCreat
         await db.commit()
         await db.refresh(novo_exercicio)
         return novo_exercicio
+    except IntegrityError:
+        await db.rollback()
+        raise exceptions.BusinessRuleError(f"Exercício '{exercicio_in.nome}' já cadastrado.")
     except Exception as e:
         await db.rollback()
         raise e

@@ -1,6 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import date, datetime
 from typing import Optional, List, Literal
+
+from src.grupos_musculares import GRUPOS_MUSCULARES, normalizar_grupo
 
 StatusAluno = Literal["ativo", "suspenso", "cancelado"]
 TipoPagamento = Literal["mensal", "pacote"]
@@ -19,6 +21,21 @@ class ExercicioBase(BaseModel):
     nome: str
     grupo_muscular: str
     video_url: Optional[str] = None
+
+    @field_validator("nome")
+    @classmethod
+    def _nome_limpo(cls, nome: str) -> str:
+        return nome.strip()
+
+    @field_validator("grupo_muscular")
+    @classmethod
+    def _grupo_canonico(cls, grupo: str) -> str:
+        canonico = normalizar_grupo(grupo)
+        if canonico is None:
+            raise ValueError(
+                f"Grupo muscular inválido. Use um de: {', '.join(GRUPOS_MUSCULARES)}"
+            )
+        return canonico
 
 class ExercicioCreate(ExercicioBase):
     pass
@@ -61,16 +78,38 @@ class PrescricaoPublic(PrescricaoCreate):
 # --- SCHEMAS DE TREINO ---
 class TreinoCreate(BaseModel):
     nome: str
+    vezes_por_semana: int = Field(1, ge=1, le=7)
+    dias_sugeridos: List[int] = Field(default_factory=list)
     prescricoes: List[PrescricaoCreate]
+
+    @field_validator("dias_sugeridos")
+    @classmethod
+    def _dias_validos(cls, dias: List[int]) -> List[int]:
+        if any(d < 0 or d > 6 for d in dias):
+            raise ValueError("dias_sugeridos deve conter valores entre 0 (segunda) e 6 (domingo)")
+        return sorted(set(dias))
 
 class TreinoUpdate(BaseModel):
     id: Optional[int] = None
     nome: str
+    vezes_por_semana: Optional[int] = Field(None, ge=1, le=7)
+    dias_sugeridos: Optional[List[int]] = None
     prescricoes: List[PrescricaoUpdate]
+
+    @field_validator("dias_sugeridos")
+    @classmethod
+    def _dias_validos(cls, dias: Optional[List[int]]) -> Optional[List[int]]:
+        if dias is None:
+            return dias
+        if any(d < 0 or d > 6 for d in dias):
+            raise ValueError("dias_sugeridos deve conter valores entre 0 (segunda) e 6 (domingo)")
+        return sorted(set(dias))
 
 class TreinoPublic(BaseModel):
     id: int
     nome: str
+    vezes_por_semana: int = 1
+    dias_sugeridos: List[int] = Field(default_factory=list)
     prescricoes: List[PrescricaoPublic]
     model_config = ConfigDict(from_attributes=True)
 
@@ -100,6 +139,35 @@ class PlanoTreinoPublic(BaseModel):
     esta_ativo: bool
     treinos: List[TreinoPublic]
     model_config = ConfigDict(from_attributes=True)
+
+# --- SCHEMAS DE PLANEJAMENTO SEMANAL ---
+class TreinoSemana(BaseModel):
+    treino_id: int
+    treino_nome: str
+    vezes_por_semana: int
+    dias_sugeridos: List[int] = Field(default_factory=list)
+    feitas: int
+    dias_feitos: List[int] = Field(default_factory=list)
+
+class VolumeGrupo(BaseModel):
+    grupo: str
+    planejado: int
+    realizado: int
+    media_4_semanas: float
+
+class SemanaPublic(BaseModel):
+    semana_inicio: date
+    semana_fim: date
+    treinos: List[TreinoSemana]
+    volumes: List[VolumeGrupo]
+
+class TreinoSugerido(BaseModel):
+    treino_id: int
+    treino_nome: str
+    motivo: Literal["dia_sugerido", "proximo_pendente"]
+
+class SemanaAlunoPublic(SemanaPublic):
+    treino_sugerido_hoje: Optional[TreinoSugerido] = None
 
 # --- SCHEMAS DE PAGAMENTO ---
 class PagamentoCreate(BaseModel):

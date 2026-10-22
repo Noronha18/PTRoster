@@ -148,7 +148,7 @@ async def test_reordenacao_de_treinos_e_prescricoes_persiste(ac: AsyncClient):
     # Cria exercícios na biblioteca
     ex_ids = []
     for nome in ("Supino", "Agachamento"):
-        res_ex = await ac.post("/exercicios/", json={"nome": nome, "grupo_muscular": "Teste"})
+        res_ex = await ac.post("/exercicios/", json={"nome": nome, "grupo_muscular": "Outros"})
         assert res_ex.status_code == 201, res_ex.text
         ex_ids.append(res_ex.json()["id"])
 

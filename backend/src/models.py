@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, Text, Float, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, Text, Float, ForeignKey, Index, JSON, func
 from sqlalchemy.orm import relationship
 from src.database import Base
 from datetime import date, datetime
@@ -129,6 +129,9 @@ class Treino(Base):
     plano_id = Column(Integer, ForeignKey('planos_treino.id', ondelete='CASCADE'))
     nome = Column(String) 
     ordem = Column(Integer, default=0)
+    vezes_por_semana = Column(Integer, default=1, nullable=False)
+    # 0=segunda ... 6=domingo; lista vazia = sem dia sugerido
+    dias_sugeridos = Column(JSON, default=list, nullable=False)
 
     plano = relationship("PlanoTreino", back_populates="treinos")
     prescricoes = relationship(
@@ -139,10 +142,13 @@ class Treino(Base):
 class Exercicio(Base):
     """A Biblioteca Global de Exercícios"""
     __tablename__ = 'exercicios'
+
     id = Column(Integer, primary_key=True)
     nome = Column(String, unique=True, index=True)
     grupo_muscular = Column(String, index=True)
     video_url = Column(String, nullable=True)
+
+    __table_args__ = (Index('uq_exercicios_nome_lower', func.lower(nome), unique=True),)
 
 class Prescricao(Base):
     """A ligação entre um Treino e um Exercício com as cargas/séries"""

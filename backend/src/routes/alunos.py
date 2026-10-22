@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from src import controllers, schemas, database
@@ -98,4 +100,16 @@ async def evolucao(
 ):
     return await controllers.evolucao_exercicio(
         db, aluno_id=aluno_id, exercicio_id=exercicio_id, trainer_id=resolve_tenant_filter(current_user)
+    )
+
+
+@router.get("/{aluno_id}/semana", response_model=schemas.SemanaPublic)
+async def semana_do_aluno(
+    aluno_id: int,
+    ref: date | None = None,
+    current_user: Usuario = Depends(get_current_trainer),
+    db: AsyncSession = Depends(database.get_db)
+):
+    return await controllers.resumo_semana(
+        db, aluno_id, ref=ref, trainer_id=resolve_tenant_filter(current_user)
     )
