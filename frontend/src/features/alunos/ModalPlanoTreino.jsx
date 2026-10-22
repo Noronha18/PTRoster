@@ -3,6 +3,7 @@ import { X, Dumbbell, Trash2, Plus, Save, Book, ChevronRight, ChevronLeft, Chevr
 import { treinoService } from '../../services/api';
 import { BibliotecaExercicios } from '../treinos/BibliotecaExercicios';
 import { useToast } from '../../components/ToastProvider';
+import { GRUPOS_MUSCULARES, DIAS_SEMANA } from '../../constants/treino';
 
 const METODOS_TREINO = [
   "Convencional", "Drop-set", "Rest-pause", "Bi-set", "Tri-set",
@@ -33,7 +34,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
     objetivo_estrategico: '',
     detalhes: '',
     duracao_semanas: 4,
-    treinos: [{ nome: 'Treino A', prescricoes: [] }]
+    treinos: [{ nome: 'Treino A', vezes_por_semana: 1, dias_sugeridos: [], prescricoes: [] }]
   });
 
   const [templates, setTemplates] = useState([]);
@@ -58,7 +59,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
         setNovoPlano({
           titulo: '', objetivo_estrategico: '', detalhes: '',
           duracao_semanas: 4,
-          treinos: [{ nome: 'Treino A', prescricoes: [] }]
+          treinos: [{ nome: 'Treino A', vezes_por_semana: 1, dias_sugeridos: [], prescricoes: [] }]
         });
         setStep(1);
         setActiveTreinoIndex(0);
@@ -72,7 +73,10 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
   const handleAddTreino = () => {
     const letras = 'BCDEFGHIJKLMNOPQRSTUVWXYZ';
     const letra = letras[novoPlano.treinos.length - 1] || 'Extra';
-    const novosTreinos = [...novoPlano.treinos, { nome: `Treino ${letra}`, prescricoes: [] }];
+    const novosTreinos = [
+      ...novoPlano.treinos,
+      { nome: `Treino ${letra}`, vezes_por_semana: 1, dias_sugeridos: [], prescricoes: [] },
+    ];
     setNovoPlano({ ...novoPlano, treinos: novosTreinos });
     setActiveTreinoIndex(novosTreinos.length - 1);
   };
@@ -90,6 +94,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
     updated[activeTreinoIndex].prescricoes.push({
       exercicio_id: ex.id,
       nome_exercicio: ex.nome,
+      grupo_muscular: ex.grupo_muscular,
       series: 3, repeticoes: '12', carga: '',
       descanso: 60, metodo: 'Convencional', observacoes: ''
     });
@@ -116,6 +121,14 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
     const updated = [...novoPlano.treinos];
     updated[tIndex].prescricoes[exIndex][campo] = valor;
     setNovoPlano({ ...novoPlano, treinos: updated });
+  };
+
+  const toggleDia = (dia) => {
+    const atuais = novoPlano.treinos[activeTreinoIndex].dias_sugeridos || [];
+    const novos = atuais.includes(dia)
+      ? atuais.filter((d) => d !== dia)
+      : [...atuais, dia].sort((a, b) => a - b);
+    handleTreinoChange(activeTreinoIndex, 'dias_sugeridos', novos);
   };
 
   const moveTreino = (idx, dir) => {
@@ -146,9 +159,12 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
       duracao_semanas: template.duracao_semanas,
       treinos: template.treinos.map(t => ({
         nome: t.nome,
+        vezes_por_semana: t.vezes_por_semana ?? 1,
+        dias_sugeridos: t.dias_sugeridos ?? [],
         prescricoes: t.prescricoes.map(p => ({
           exercicio_id: p.exercicio_id,
           nome_exercicio: p.nome_exercicio || (p.exercicio ? p.exercicio.nome : 'Exercício'),
+          grupo_muscular: p.exercicio?.grupo_muscular || 'Outros',
           series: p.series, repeticoes: p.repeticoes,
           carga: p.carga_kg, descanso: p.tempo_descanso_segundos,
           metodo: p.metodo || 'Convencional', observacoes: p.observacoes || ''
@@ -180,6 +196,20 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
   };
 
   const prescricoes = novoPlano.treinos[activeTreinoIndex]?.prescricoes ?? [];
+  const treinoAtivo = novoPlano.treinos[activeTreinoIndex];
+
+  const volumePorGrupo = {};
+  novoPlano.treinos.forEach((t) => {
+    const vezes = Number(t.vezes_por_semana) || 0;
+    (t.prescricoes || []).forEach((p) => {
+      const grupo = p.grupo_muscular || 'Outros';
+      volumePorGrupo[grupo] = (volumePorGrupo[grupo] || 0) + (Number(p.series) || 0) * vezes;
+    });
+  });
+  const volumePlanejado = GRUPOS_MUSCULARES
+    .filter((grupo) => (volumePorGrupo[grupo] || 0) > 0)
+    .map((grupo) => [grupo, volumePorGrupo[grupo]]);
+  const totalVolume = volumePlanejado.reduce((soma, [, series]) => soma + series, 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
@@ -369,6 +399,68 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
                         placeholder="Ex: A — Peito e Tríceps"
                       />
                     </div>
+                  </div>
+
+                  {/* Planejamento semanal do treino */}
+                  <div className="bg-surface px-4 py-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-border shadow-sm space-y-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <label className="text-2xs font-black text-text-muted uppercase tracking-widest ml-1 block">Vezes / semana</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="7"
+                            value={treinoAtivo?.vezes_por_semana ?? 1}
+                            onChange={(e) => handleTreinoChange(activeTreinoIndex, 'vezes_por_semana', e.target.value)}
+                            className="w-24 bg-overlay border border-border rounded-xl py-2.5 px-3 text-center text-lg font-black text-text-primary outline-none focus:ring-2 focus:ring-brand/20"
+                          />
+                        </div>
+                        <p className="text-xs text-text-muted font-medium max-w-[150px] leading-snug mt-4">
+                          Quantas sessões deste treino na semana.
+                        </p>
+                      </div>
+
+                      <div className="flex-1">
+                        <label className="text-2xs font-black text-text-muted uppercase tracking-widest ml-1 block">Dias sugeridos</label>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {DIAS_SEMANA.map((dia) => {
+                            const ativo = (treinoAtivo?.dias_sugeridos || []).includes(dia.valor);
+                            return (
+                              <button
+                                key={dia.valor}
+                                type="button"
+                                onClick={() => toggleDia(dia.valor)}
+                                className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${
+                                  ativo
+                                    ? 'bg-brand text-brand-fg border-brand shadow-sm'
+                                    : 'bg-overlay text-text-muted border-border hover:text-text-secondary'
+                                }`}
+                                title={dia.longo}
+                              >
+                                {dia.curto}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {volumePlanejado.length > 0 && (
+                      <div className="border-t border-border pt-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-2xs font-black text-text-muted uppercase tracking-widest">Volume semanal planejado</p>
+                          <p className="text-2xs font-black text-text-secondary uppercase tracking-widest tabular-nums">{totalVolume} séries</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {volumePlanejado.map(([grupo, series]) => (
+                            <span key={grupo} className="px-2.5 py-1 bg-brand/8 text-brand rounded-lg text-2xs font-black uppercase tracking-widest">
+                              {grupo} · {series}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Exercícios */}

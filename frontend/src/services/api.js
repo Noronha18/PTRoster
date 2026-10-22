@@ -43,6 +43,8 @@ export const alunoService = {
     ultimaExecucao: (id, treinoId) => apiFetch(`/alunos/${id}/ultima-execucao?treino_id=${treinoId}`),
     evolucao: (id, exercicioId) =>
         apiFetch(`/alunos/${id}/evolucao${exercicioId ? `?exercicio_id=${exercicioId}` : ''}`),
+    semana: (id, ref) =>
+        apiFetch(`/alunos/${id}/semana${ref ? `?ref=${ref}` : ''}`),
     criar: (dados) => apiFetch('/alunos/', {
         method: 'POST',
         body: JSON.stringify(dados),

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Book, Search, Plus, X, Save } from 'lucide-react';
 import { treinoService } from '../../services/api';
 import { useToast } from '../../components/ToastProvider';
+import { GRUPOS_MUSCULARES } from '../../constants/treino';
 
 export const BibliotecaExercicios = ({ onSelectExercicio }) => {
     const toast = useToast();
@@ -55,7 +56,10 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
         }
     };
 
-    const grupos = ['Todos', ...new Set(exercicios.map(ex => ex.grupo_muscular))];
+    const grupos = [
+        'Todos',
+        ...GRUPOS_MUSCULARES.filter(grupo => exercicios.some(ex => ex.grupo_muscular === grupo)),
+    ];
 
     const exerciciosFiltrados = exercicios.filter(ex => {
         const matchesGrupo = grupoAtivo === 'Todos' || ex.grupo_muscular === grupoAtivo;
@@ -164,14 +168,17 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Grupo Muscular</label>
-                                <input
-                                    type="text"
+                                <select
                                     required
-                                    className="w-full bg-overlay border border-border rounded-2xl px-5 py-4 text-text-primary font-bold focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-text-muted"
+                                    className="w-full bg-overlay border border-border rounded-2xl px-5 py-4 text-text-primary font-bold focus:ring-2 focus:ring-brand/20 outline-none transition-all cursor-pointer"
                                     value={novoExercicio.grupo_muscular}
                                     onChange={(e) => setNovoExercicio({...novoExercicio, grupo_muscular: e.target.value})}
-                                    placeholder="Ex: Peitoral"
-                                />
+                                >
+                                    <option value="" disabled>Selecione...</option>
+                                    {GRUPOS_MUSCULARES.map((grupo) => (
+                                        <option key={grupo} value={grupo}>{grupo}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="space-y-2">

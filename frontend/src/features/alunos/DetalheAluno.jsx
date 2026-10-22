@@ -3,13 +3,14 @@ import {
     User, Target, AlertTriangle,
     Dumbbell, DollarSign, Clock, ArrowLeft,
     CheckCircle2, Trash2, Plus, Eye, ChevronDown, ChevronUp, Copy, Edit,
-    ShieldCheck, Zap, BookMarked
+    ShieldCheck, Zap, BookMarked, CalendarDays
 } from 'lucide-react';
 import { alunoService, treinoService } from '../../services/api';
 import { ModalPlanoTreino } from './ModalPlanoTreino';
 import { FormAlunoModal } from './FormAlunoModal';
 import ModalRegistrarSessao from '../sessoes/ModalRegistrarSessao';
 import { EvolucaoExercicio } from './EvolucaoExercicio';
+import { SemanaAluno } from './SemanaAluno';
 import { useToast } from '../../components/ToastProvider';
 
 const METODOS_AGRUPADORES = ["Bi-set", "Tri-set", "Giant-set", "Super-set"];
@@ -40,6 +41,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
     const [planoEdicao, setPlanoEdicao] = useState(null);
     const [expandirSessoes, setExpandirSessoes] = useState(false);
     const [expandirPagamentos, setExpandirPagamentos] = useState(false);
+    const [aba, setAba] = useState('treinos');
 
     const carregar = async () => {
         try {
@@ -133,10 +135,13 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
             treinos: plano.treinos.map(t => ({
                 id: t.id,
                 nome: t.nome,
+                vezes_por_semana: t.vezes_por_semana ?? 1,
+                dias_sugeridos: t.dias_sugeridos ?? [],
                 prescricoes: t.prescricoes.map(p => ({
                     id: p.id,
                     exercicio_id: p.exercicio_id,
                     nome_exercicio: p.nome_exercicio || p.exercicio?.nome || 'Exercício',
+                    grupo_muscular: p.exercicio?.grupo_muscular || 'Outros',
                     series: p.series,
                     repeticoes: p.repeticoes,
                     carga: p.carga_kg,
@@ -350,6 +355,30 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                 {/* Coluna 2 e 3: Treinos e Histórico */}
                 <div className="lg:col-span-8 space-y-6">
 
+                    <div className="flex gap-1 bg-surface border border-border rounded-xl p-1.5 w-fit">
+                        <button
+                            onClick={() => setAba('treinos')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                                aba === 'treinos' ? 'bg-brand text-brand-fg shadow-sm' : 'text-text-muted hover:text-text-secondary'
+                            }`}
+                        >
+                            <Dumbbell size={14} /> Treinos
+                        </button>
+                        <button
+                            onClick={() => setAba('semana')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                                aba === 'semana' ? 'bg-brand text-brand-fg shadow-sm' : 'text-text-muted hover:text-text-secondary'
+                            }`}
+                        >
+                            <CalendarDays size={14} /> Semana
+                        </button>
+                    </div>
+
+                    {aba === 'semana' ? (
+                        <SemanaAluno alunoId={alunoId} />
+                    ) : (
+                    <>
+
                     {/* Planos de Treino */}
                     <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
@@ -466,6 +495,9 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                             </div>
                         </div>
                     </div>
+
+                    </>
+                    )}
 
                 </div>
             </div>
