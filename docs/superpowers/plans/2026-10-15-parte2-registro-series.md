@@ -53,7 +53,7 @@
 **Interfaces:**
 - Produces: `models.RegistroSerie(id, sessao_id, exercicio_id, prescricao_id, numero_serie, repeticoes, carga_kg, sessao, exercicio)`; `SessaoTreino.treino_id`, `SessaoTreino.registrado_por`, `SessaoTreino.treino`, `SessaoTreino.series`; `consultoria.agora() -> datetime` (naive, Brasília); schemas `SerieIn`, `SeriePublic`, `ExecucaoCreate`, `SeriesUpdate`, `SessaoExecucaoPublic`, `SerieResumo`, `UltimaExecucaoExercicio`, `ExercicioRegistrado`, `SemanaEvolucao`, `EvolucaoPublic`, `ExercicioAtividade`, `AtividadeRecente`.
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [x] **Step 1: Escrever o teste que falha**
 
 Criar `backend/tests/test_execucao.py` (`tests/` não é pacote, então os helpers ficam no próprio arquivo):
 
@@ -124,12 +124,12 @@ async def test_agora_usa_horario_de_brasilia():
     assert consultoria.agora(utc) == datetime(2026, 10, 15, 22, 30)
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_execucao.py -q`
 Expected: FAIL com `AttributeError: module 'src.consultoria' has no attribute 'agora'`
 
-- [ ] **Step 3: Implementar `agora`, models, migração e schemas**
+- [x] **Step 3: Implementar `agora`, models, migração e schemas**
 
 Em `backend/src/consultoria.py`, logo depois de `def hoje(...)`:
 
@@ -319,12 +319,12 @@ class AtividadeRecente(BaseModel):
     exercicios: List[ExercicioAtividade]
 ```
 
-- [ ] **Step 4: Rodar e ver passar (arquivo novo + suíte inteira)**
+- [x] **Step 4: Rodar e ver passar (arquivo novo + suíte inteira)**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS, 43 passed (42 antigos + 1 novo)
 
-- [ ] **Step 5: Conferir CRLF e commitar**
+- [x] **Step 5: Conferir CRLF e commitar**
 
 Run: `cd backend && git diff --stat src/models.py` — Expected: só as linhas novas (~20), não o arquivo inteiro.
 
@@ -346,7 +346,7 @@ git commit -m "feat: tabela registros_serie e vínculo da sessão com o treino"
 - Consumes: Task 1 (models e schemas).
 - Produces: `controllers.registrar_execucao(db, payload: schemas.ExecucaoCreate, aluno_id: int, registrado_por: str, trainer_id: int | None = None) -> models.SessaoTreino`; `controllers._aluno_do_tenant(db, aluno_id, trainer_id) -> models.Aluno`; `controllers._validar_series(db, series, treino_id: int | None) -> None`; `controllers._carregar_execucao(db, sessao_id) -> models.SessaoTreino` (com `series` carregadas).
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 Acrescentar a `backend/tests/test_execucao.py`:
 
@@ -450,12 +450,12 @@ async def test_excluir_aluno_com_series_registradas(ac: AsyncClient):
     assert (await ac.delete(f"/alunos/{aluno_id}")).status_code == 204
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_execucao.py -q`
 Expected: FAIL nos testes novos com 404/405 em `POST /sessoes/execucao` (rota inexistente). `test_excluir_aluno_com_series_registradas` pode passar já, porque o `POST` falha antes de gravar; ele fica valendo depois do Step 3.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Em `backend/src/controllers.py`, substituir o bloco de débito de `registrar_sessao` e gravar `registrado_por`. O trecho atual:
 
@@ -603,12 +603,12 @@ async def registrar_execucao(
     return await controllers.registrar_execucao(db, payload, aluno_id=current_user.aluno_id, registrado_por="aluno")
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS, 52 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/controllers.py backend/src/routes/sessoes.py backend/tests/test_execucao.py
@@ -628,7 +628,7 @@ git commit -m "feat: registro de execução com séries numa transação"
 - Consumes: `_validar_series`, `_carregar_execucao` (Task 2).
 - Produces: `controllers.substituir_series(db, sessao_id, series, trainer_id=None, aluno_id=None) -> models.SessaoTreino`; `controllers.get_sessao(db, sessao_id, trainer_id=None, aluno_id=None)`; `controllers.deletar_sessao(db, sessao_id, trainer_id=None, aluno_id=None)`.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```python
 async def _execucao(ac: AsyncClient, treino: dict, cargas: list[float | None], **extras) -> dict:
@@ -689,12 +689,12 @@ async def test_aluno_exclui_propria_sessao_e_trainer_edita_qualquer(ac: AsyncCli
     assert (await ac.put(f"/sessoes/{s2['id']}/series", json={"series": _series(treino["prescricoes"][0], [1])})).status_code == 404
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_execucao.py -q`
 Expected: FAIL com 405 no `PUT` e 403 no `DELETE` do aluno (rota restrita a trainer).
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Em `backend/src/controllers.py`, substituir `get_sessao` e `deletar_sessao` por:
 
@@ -784,12 +784,12 @@ async def deletar_sessao(
     return Response(status_code=204)
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS, 56 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/controllers.py backend/src/routes/sessoes.py backend/tests/test_execucao.py
@@ -810,7 +810,7 @@ git commit -m "feat: editar séries e excluir sessão com escopo de trainer e al
 - Consumes: `_aluno_do_tenant` (Task 2).
 - Produces: `controllers.ultima_execucao(db, aluno_id, treino_id, trainer_id=None) -> list[dict]` com chaves `exercicio_id, sessao_id, data_hora, series` (lista de `RegistroSerie`). Rotas `GET /alunos/{aluno_id}/ultima-execucao?treino_id=` e `GET /alunos/me/ultima-execucao?treino_id=`.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```python
 @pytest.mark.anyio
@@ -852,12 +852,12 @@ async def test_ultima_execucao_isolada_por_trainer(ac: AsyncClient, como_usuario
     assert res.status_code == 404
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_execucao.py -q`
 Expected: FAIL com 404/405 nas rotas novas.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Em `backend/src/controllers.py`, depois de `substituir_series`:
 
@@ -933,12 +933,12 @@ async def minha_ultima_execucao(
     return await controllers.ultima_execucao(db, aluno_id=current_user.aluno_id, treino_id=treino_id)
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS, 59 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/controllers.py backend/src/routes/alunos.py backend/src/routes/meu_perfil.py backend/tests/test_execucao.py
@@ -958,7 +958,7 @@ git commit -m "feat: última execução por exercício para pré-preenchimento"
 - Consumes: `_aluno_do_tenant`, `_series_do_aluno` (Tasks 2 e 4).
 - Produces: `controllers.evolucao_exercicio(db, aluno_id, exercicio_id=None, trainer_id=None) -> dict` com `exercicios: [{id, nome}]` (só os que têm registro, por nome) e `semanas: [{semana_inicio, series, carga_max, volume_carga}]` em ordem cronológica (vazia quando `exercicio_id` não vem). Rota `GET /alunos/{aluno_id}/evolucao?exercicio_id=`.
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```python
 @pytest.mark.anyio
@@ -1013,12 +1013,12 @@ async def test_evolucao_isolada_por_trainer(ac: AsyncClient, como_usuario):
     assert (await ac.get(f"/alunos/{aluno_id}/evolucao")).status_code == 404
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_execucao.py -q`
 Expected: FAIL com 404 em `/alunos/{id}/evolucao` (rota inexistente; o 404 do isolamento passa por acaso).
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Em `backend/src/controllers.py`, depois de `ultima_execucao`:
 
@@ -1069,12 +1069,12 @@ async def evolucao(
     )
 ```
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS, 63 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/controllers.py backend/src/routes/alunos.py backend/tests/test_execucao.py
@@ -1094,7 +1094,7 @@ git commit -m "feat: evolução semanal de carga e volume por exercício"
 **Interfaces:**
 - Produces: `controllers.atividade_recente(db, trainer_id=None, limit=20) -> list[dict]` no formato de `schemas.AtividadeRecente`. Rota `GET /atividade-recente?limit=` (só trainer/admin).
 
-- [ ] **Step 1: Escrever os testes que falham**
+- [x] **Step 1: Escrever os testes que falham**
 
 ```python
 @pytest.mark.anyio
@@ -1144,12 +1144,12 @@ async def test_feed_isolado_por_trainer_e_fechado_ao_aluno(ac: AsyncClient, como
     assert (await ac.get("/atividade-recente")).status_code == 403
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_execucao.py -q`
 Expected: FAIL com 404 em `/atividade-recente`.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Em `backend/src/controllers.py`, depois de `evolucao_exercicio`:
 
@@ -1239,12 +1239,12 @@ async def atividade_recente(
 
 Em `backend/src/api.py`: acrescentar `atividade` ao import de `src.routes` e `app.include_router(atividade.router)` depois de `avisos.router`.
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS, 66 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/controllers.py backend/src/routes/atividade.py backend/src/api.py backend/tests/test_execucao.py
@@ -1265,7 +1265,7 @@ git commit -m "feat: feed de atividade recente com delta de carga"
 - Consumes: rotas das Tasks 2, 4, 5, 6.
 - Produces: `series.js` exporta `valoresIniciais(prescricoes, ultimas) -> {[chave]: {reps, kg}}` e `seriesParaEnvio(prescricoes, valores, incluir?) -> SerieIn[]`, com `chave = \`p${prescricao.id}_s${n}\``. O mesmo arquivo é copiado para o portal na Task 10.
 
-- [ ] **Step 1: Criar `frontend/src/features/sessoes/series.js`**
+- [x] **Step 1: Criar `frontend/src/features/sessoes/series.js`**
 
 ```js
 // Grade de séries: valores iniciais e conversão para o POST /sessoes/execucao.
@@ -1321,7 +1321,7 @@ export function seriesParaEnvio(prescricoes, valores, incluir = () => true) {
 }
 ```
 
-- [ ] **Step 2: Conferir a lógica com um assert rápido**
+- [x] **Step 2: Conferir a lógica com um assert rápido**
 
 Run (na raiz do repo):
 
@@ -1342,7 +1342,7 @@ console.log('ok');
 
 Expected: `ok`
 
-- [ ] **Step 3: Serviços em `frontend/src/services/api.js`**
+- [x] **Step 3: Serviços em `frontend/src/services/api.js`**
 
 Em `alunoService`, depois de `obterPorId`:
 
@@ -1369,7 +1369,7 @@ export const atividadeService = {
 };
 ```
 
-- [ ] **Step 4: Reescrever o bloco "realizada" do `ModalRegistrarSessao.jsx`**
+- [x] **Step 4: Reescrever o bloco "realizada" do `ModalRegistrarSessao.jsx`**
 
 O modal hoje escolhe só o plano. Passa a escolher o treino do plano ativo e mostra a grade. Faltas continuam no `POST /sessoes/` antigo.
 
@@ -1510,7 +1510,7 @@ No JSX: trocar `max={new Date().toISOString().split('T')[0]}` por `max={hojeISO(
 
 Remover os imports não usados que sobrarem (`AlertCircle`, se o lint apontar).
 
-- [ ] **Step 5: Abrir o modal pelo `DetalheAluno.jsx`**
+- [x] **Step 5: Abrir o modal pelo `DetalheAluno.jsx`**
 
 Import: `import ModalRegistrarSessao from '../sessoes/ModalRegistrarSessao';`. Estado: `const [isModalSessaoOpen, setIsModalSessaoOpen] = useState(false);`. Depois do botão de Check-in (dentro do mesmo `aluno.status === 'ativo' &&`, envolvendo os dois botões num fragmento):
 
@@ -1537,12 +1537,12 @@ E em `{/* Modais */}`:
             )}
 ```
 
-- [ ] **Step 6: Build e lint**
+- [x] **Step 6: Build e lint**
 
 Run: `cd frontend && npm run build && npx eslint src -f json -o /tmp/claude-1000/-home-emmanuel-Documentos-projetos-Personal-System1-0-master/b90446f6-8761-45a6-b15c-416253f94b39/scratchpad/lint-t7.json; node -e "const r=require('/tmp/claude-1000/-home-emmanuel-Documentos-projetos-Personal-System1-0-master/b90446f6-8761-45a6-b15c-416253f94b39/scratchpad/lint-t7.json');console.log(r.reduce((a,f)=>a+f.errorCount+f.warningCount,0))"`
 Expected: build OK; contagem de lint = 9 (os mesmos pré-existentes). Se subir, corrigir os novos.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add frontend/src/features/sessoes/series.js frontend/src/services/api.js frontend/src/features/sessoes/ModalRegistrarSessao.jsx frontend/src/features/alunos/DetalheAluno.jsx
@@ -1560,7 +1560,7 @@ git commit -m "feat: painel registra treino com reps e carga por série"
 **Interfaces:**
 - Consumes: `alunoService.evolucao(id, exercicioId?)` (Task 7).
 
-- [ ] **Step 1: Criar `frontend/src/features/alunos/EvolucaoExercicio.jsx`**
+- [x] **Step 1: Criar `frontend/src/features/alunos/EvolucaoExercicio.jsx`**
 
 ```jsx
 import { useEffect, useState } from 'react';
@@ -1665,7 +1665,7 @@ export const EvolucaoExercicio = ({ alunoId }) => {
 };
 ```
 
-- [ ] **Step 2: Montar no `DetalheAluno.jsx`**
+- [x] **Step 2: Montar no `DetalheAluno.jsx`**
 
 Import: `import { EvolucaoExercicio } from './EvolucaoExercicio';`. Logo antes de `{/* Histórico */}`:
 
@@ -1673,12 +1673,12 @@ Import: `import { EvolucaoExercicio } from './EvolucaoExercicio';`. Logo antes d
                     <EvolucaoExercicio alunoId={alunoId} />
 ```
 
-- [ ] **Step 3: Build e lint**
+- [x] **Step 3: Build e lint**
 
 Run: o mesmo comando do Step 6 da Task 7 (arquivo `lint-t8.json`).
 Expected: build OK; lint = 9.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/features/alunos/EvolucaoExercicio.jsx frontend/src/features/alunos/DetalheAluno.jsx
@@ -1696,7 +1696,7 @@ git commit -m "feat: evolução semanal por exercício no detalhe do aluno"
 **Interfaces:**
 - Consumes: `atividadeService.recente()` (Task 7).
 
-- [ ] **Step 1: Criar `frontend/src/features/sessoes/AtividadeRecente.jsx`**
+- [x] **Step 1: Criar `frontend/src/features/sessoes/AtividadeRecente.jsx`**
 
 ```jsx
 import { useEffect, useState } from 'react';
@@ -1769,7 +1769,7 @@ export const AtividadeRecente = ({ onSelectAluno }) => {
 };
 ```
 
-- [ ] **Step 2: Montar no `ListaAlunos.jsx`**
+- [x] **Step 2: Montar no `ListaAlunos.jsx`**
 
 Import: `import { AtividadeRecente } from '../sessoes/AtividadeRecente';`. Logo depois de `<CardAvisos onSelectAluno={onSelectAluno} />`:
 
@@ -1777,12 +1777,12 @@ Import: `import { AtividadeRecente } from '../sessoes/AtividadeRecente';`. Logo 
             <AtividadeRecente onSelectAluno={onSelectAluno} />
 ```
 
-- [ ] **Step 3: Build e lint**
+- [x] **Step 3: Build e lint**
 
 Run: o mesmo comando do Step 6 da Task 7 (arquivo `lint-t9.json`).
 Expected: build OK; lint = 9.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/features/sessoes/AtividadeRecente.jsx frontend/src/features/alunos/ListaAlunos.jsx
@@ -1805,7 +1805,7 @@ git commit -m "feat: feed de atividade recente no painel com polling de 30s"
 **Interfaces:**
 - Consumes: `GET /alunos/me/ultima-execucao?treino_id=`, `POST /sessoes/execucao` (Tasks 2 e 4); `valoresIniciais`, `seriesParaEnvio`, `chaveSerie`.
 
-- [ ] **Step 1: Criar a branch e copiar `series.js`**
+- [x] **Step 1: Criar a branch e copiar `series.js`**
 
 ```bash
 cd ~/Documentos/projetos/ptroster-alunos && git switch -c feat/registro-series
@@ -1813,7 +1813,7 @@ cp ~/Documentos/projetos/Personal_System1.0-master/frontend/src/features/sessoes
 sed -i 's#// Cópia idêntica em ptroster-alunos/src/utils/series.js: mudou aqui, mude lá.#// Cópia idêntica de Personal_System1.0/frontend/src/features/sessoes/series.js: mudou aqui, mude lá.#' src/utils/series.js
 ```
 
-- [ ] **Step 2: `ExercicioAccordion` com reps e kg editáveis**
+- [x] **Step 2: `ExercicioAccordion` com reps e kg editáveis**
 
 Nova assinatura (sem carga, sem debounce):
 
@@ -1851,7 +1851,7 @@ Cabeçalho das séries: `['#', 'Reps', 'Kg', '✓']`. Em cada linha, trocar os d
 
 `const key = chaveSerie(prescricao.id, n);` no lugar do template literal.
 
-- [ ] **Step 3: `CompletionModal` salva o treino**
+- [x] **Step 3: `CompletionModal` salva o treino**
 
 Props: `({ onSalvar, salvando, onClose, totalSets, treinoNome })`. Trocar o botão "Fazer Check-in ✓" por:
 
@@ -1865,7 +1865,7 @@ Props: `({ onSalvar, salvando, onClose, totalSets, treinoNome })`. Trocar o bot�
         </button>
 ```
 
-- [ ] **Step 4: Estado, pré-preenchimento, rascunho e envio em `Treinos`**
+- [x] **Step 4: Estado, pré-preenchimento, rascunho e envio em `Treinos`**
 
 Imports novos: `import api from '../services/api';`, `import { getAlunoId } from '../utils/auth';`, `import { chaveSerie, seriesParaEnvio, valoresIniciais } from '../utils/series';`. `useAluno()` passa a devolver só `{ planoAtivo, loading, error }`.
 
@@ -1953,17 +1953,17 @@ No JSX: `CompletionModal` recebe `onSalvar={salvarTreino}` e `salvando={salvando
 
 Em `src/hooks/useAluno.js`: apagar `atualizarCarga` e o import de `api` e `useCallback` se ficarem sem uso. Retorno: `{ aluno, setAluno, planoAtivo, loading, error }`.
 
-- [ ] **Step 5: Teste da conversão de séries**
+- [x] **Step 5: Teste da conversão de séries**
 
 Se o vitest estiver disponível (depende da decisão sobre o WIP), criar `src/utils/series.test.js` com os mesmos asserts do Step 2 da Task 7 em `describe/it/expect` e rodar `npm test`. Sem vitest, rodar o mesmo `node --input-type=module` do Step 2 da Task 7 apontando para `src/utils/series.js`.
 Expected: pass / `ok`.
 
-- [ ] **Step 6: Build e lint**
+- [x] **Step 6: Build e lint**
 
 Run: `npm run build && npx eslint src -f json -o <scratchpad>/lint-t10.json` e contar problemas.
 Expected: build OK; lint ≤ 3 (os pré-existentes) — os erros que somem junto com o código de carga contam como ganho.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/utils/series.js src/pages/Treinos.jsx src/hooks/useAluno.js
@@ -1983,7 +1983,7 @@ git commit -m "feat: aluno registra reps e carga por série e salva o treino"
 - Modify: `backend/src/schemas.py` (apaga `PrescricaoCargarUpdate`)
 - Modify: `backend/tests/test_consultoria.py` (~linha 210: a checagem de trava usava `PATCH /prescricoes/1/carga`)
 
-- [ ] **Step 1: Ajustar o teste primeiro**
+- [x] **Step 1: Ajustar o teste primeiro**
 
 Em `test_consultoria.py`, no teste que lista endpoints bloqueados pela trava, trocar
 `await ac.patch("/prescricoes/1/carga", json={"carga": "20"}),`
@@ -1997,12 +1997,12 @@ async def test_patch_de_carga_foi_removido(ac: AsyncClient):
     assert (await ac.patch("/prescricoes/1/carga", json={"carga": "20"})).status_code in (404, 405)
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [x] **Step 2: Rodar e ver falhar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: FAIL só em `test_patch_de_carga_foi_removido` (rota ainda responde 403/404 de prescrição). Se responder 404 já hoje (prescrição 1 inexistente) o teste passa por acaso: nesse caso criar antes um cenário com `_cenario` e usar o id real da prescrição, logado como o aluno.
 
-- [ ] **Step 3: Remover rota, controller e schema**
+- [x] **Step 3: Remover rota, controller e schema**
 
 ```bash
 git rm backend/src/routes/prescricoes.py
@@ -2010,12 +2010,12 @@ git rm backend/src/routes/prescricoes.py
 
 Editar `api.py`, `controllers.py`, `schemas.py` como listado em **Files**.
 
-- [ ] **Step 4: Rodar e ver passar**
+- [x] **Step 4: Rodar e ver passar**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS, 67 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A backend/src backend/tests

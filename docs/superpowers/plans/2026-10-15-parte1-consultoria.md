@@ -50,7 +50,7 @@
 **Interfaces:**
 - Produces: colunas `Aluno.modalidade: str`, `Aluno.data_vencimento_consultoria: date | None`, `Aluno.bloquear_apos_vencimento: bool`; atributos de instância (não mapeados) `Aluno.acesso_bloqueado = False`, `Aluno.dias_para_vencimento_consultoria = None`, `Aluno.dias_para_fim_programa = None`; `schemas.Modalidade = Literal["presencial", "consultoria"]`; fixtures `como_usuario` e `ac` em `conftest.py`.
 
-- [ ] **Step 1: Mover fixtures para `conftest.py`**
+- [x] **Step 1: Mover fixtures para `conftest.py`**
 
 Acrescentar ao final de `backend/tests/conftest.py` (os testes antigos definem fixtures com o mesmo nome localmente e continuam funcionando, pois a fixture local tem precedência):
 
@@ -87,7 +87,7 @@ async def ac(como_usuario):
         yield client
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Criar `backend/tests/test_consultoria.py`:
 
@@ -156,12 +156,12 @@ async def test_modalidade_invalida_e_rejeitada(ac: AsyncClient):
     assert res.status_code == 422
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_consultoria.py -q`
 Expected: FAIL (`KeyError: 'modalidade'` e o 422 não acontece).
 
-- [ ] **Step 4: Model**
+- [x] **Step 4: Model**
 
 Em `backend/src/models.py`, na classe `Aluno`, logo após `status = Column(...)`:
 
@@ -179,7 +179,7 @@ E no bloco "Propriedades auxiliares para a View", após `status_financeiro = "em
     dias_para_fim_programa = None
 ```
 
-- [ ] **Step 5: Migração**
+- [x] **Step 5: Migração**
 
 Criar `backend/alembic/versions/b1c2d3e4f5a6_add_consultoria_to_alunos.py`:
 
@@ -214,7 +214,7 @@ def downgrade() -> None:
 
 Antes de criar, confirmar que `a9b8c7d6e5f4` é o head: `grep -l "down_revision.*a9b8c7d6e5f4" backend/alembic/versions/*.py` deve retornar vazio.
 
-- [ ] **Step 6: Schemas**
+- [x] **Step 6: Schemas**
 
 Em `backend/src/schemas.py`, após `TipoPagamento = ...`:
 
@@ -257,12 +257,12 @@ Em `AlunoPublic`, após `status: str = "ativo"`:
     dias_para_fim_programa: Optional[int] = None
 ```
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS (22 testes: 19 antigos + 3 novos).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/alembic/versions/b1c2d3e4f5a6_add_consultoria_to_alunos.py backend/src/models.py backend/src/schemas.py backend/tests/conftest.py backend/tests/test_consultoria.py
@@ -289,7 +289,7 @@ git commit -m "feat: campos de modalidade consultoria no aluno"
   - `acesso_bloqueado(aluno: models.Aluno, hoje: date) -> bool`
   - `preencher_avisos(aluno: models.Aluno, hoje: date) -> None` (exige `aluno.planos_treino` já carregado)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Acrescentar a `backend/tests/test_consultoria.py`:
 
@@ -374,12 +374,12 @@ async def test_presencial_nao_tem_dias_para_vencimento(ac: AsyncClient):
     assert aluno["dias_para_fim_programa"] is None
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_consultoria.py -q`
 Expected: FAIL (`ImportError: cannot import name 'consultoria'`).
 
-- [ ] **Step 3: Criar `backend/src/consultoria.py`**
+- [x] **Step 3: Criar `backend/src/consultoria.py`**
 
 ```python
 """Regras da modalidade consultoria: vencimento, trava de acesso e avisos."""
@@ -429,7 +429,7 @@ def preencher_avisos(aluno: models.Aluno, hoje: date) -> None:
     aluno.dias_para_fim_programa = (fim_programa(plano) - hoje).days if plano else None
 ```
 
-- [ ] **Step 4: Controllers**
+- [x] **Step 4: Controllers**
 
 Em `backend/src/controllers.py`:
 
@@ -521,12 +521,12 @@ por:
             )
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS (todos).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/src/consultoria.py backend/src/controllers.py backend/tests/test_consultoria.py
@@ -545,7 +545,7 @@ git commit -m "feat: status financeiro e avisos por modalidade consultoria"
 **Interfaces:**
 - Produces: `PagamentoCreate.novo_vencimento: Optional[date] = None`. Para aluno de consultoria é obrigatório (409 `BusinessRuleViolation` sem ele).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Acrescentar a `backend/tests/test_consultoria.py`:
 
@@ -596,12 +596,12 @@ async def test_checkin_do_trainer_nao_debita_consultoria_com_saldo_legado(ac: As
     assert (await ac.get(f"/alunos/{aluno_id}")).json()["saldo_aulas"] == 5
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_consultoria.py -q`
 Expected: FAIL nos 3 testes de consultoria (vencimento não muda; saldo vira 10; sem 409; débito de 5 para 4).
 
-- [ ] **Step 3: Schema**
+- [x] **Step 3: Schema**
 
 Em `PagamentoCreate`, após `observacao: Optional[str] = None`:
 
@@ -609,7 +609,7 @@ Em `PagamentoCreate`, após `observacao: Optional[str] = None`:
     novo_vencimento: Optional[date] = None  # obrigatório para aluno de consultoria
 ```
 
-- [ ] **Step 4: `registrar_pagamento`**
+- [x] **Step 4: `registrar_pagamento`**
 
 Trocar o corpo entre `_parse_referencia_mes(ref)` e `db.add(novo_pagamento)` por:
 
@@ -639,7 +639,7 @@ Trocar o corpo entre `_parse_referencia_mes(ref)` e `db.add(novo_pagamento)` por
         aluno.saldo_aulas += quantidade_aulas
 ```
 
-- [ ] **Step 5: `registrar_sessao`**
+- [x] **Step 5: `registrar_sessao`**
 
 Trocar `if registrado_por_staff and aula_contabilizada and aluno.tipo_pagamento == "pacote":` por:
 
@@ -648,12 +648,12 @@ Trocar `if registrado_por_staff and aula_contabilizada and aluno.tipo_pagamento 
             and aluno.modalidade == "presencial" and aluno.tipo_pagamento == "pacote"):
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS (todos).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/src/schemas.py backend/src/controllers.py backend/tests/test_consultoria.py
@@ -675,7 +675,7 @@ git commit -m "feat: pagamento de consultoria renova vencimento sem mexer em sal
 - Consumes: `consultoria.acesso_bloqueado`, `CODIGO_CONSULTORIA_VENCIDA` (Task 2).
 - Produces: `async def exigir_acesso_treino(current_user: Usuario = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> None`. Levanta `HTTPException(403, detail="consultoria_vencida")` para usuário aluno bloqueado; não faz nada para trainer/admin. As partes 2 e 3 vão reutilizar esta dependência nos endpoints novos do aluno.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Acrescentar a `backend/tests/test_consultoria.py`:
 
@@ -737,12 +737,12 @@ async def test_trainer_nunca_e_bloqueado(ac: AsyncClient):
     assert (await ac.post("/sessoes/", json={"aluno_id": aluno_id})).status_code == 201
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_consultoria.py -q`
 Expected: FAIL (200/201 onde se espera 403; `planos_treino` não vazio).
 
-- [ ] **Step 3: Dependência em `consultoria.py`**
+- [x] **Step 3: Dependência em `consultoria.py`**
 
 Acrescentar ao topo de `backend/src/consultoria.py` (imports):
 
@@ -769,7 +769,7 @@ async def exigir_acesso_treino(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=CODIGO_CONSULTORIA_VENCIDA)
 ```
 
-- [ ] **Step 4: Aplicar nos routers**
+- [x] **Step 4: Aplicar nos routers**
 
 Em `backend/src/routes/sessoes.py`:
 
@@ -787,7 +787,7 @@ from src.consultoria import exigir_acesso_treino
 router = APIRouter(tags=["Prescrições"], dependencies=[Depends(exigir_acesso_treino)])
 ```
 
-- [ ] **Step 5: `/alunos/me`**
+- [x] **Step 5: `/alunos/me`**
 
 Em `backend/src/routes/meu_perfil.py`, trocar o `return await controllers.get_aluno(db, current_user.aluno_id)` por:
 
@@ -801,12 +801,12 @@ Em `backend/src/routes/meu_perfil.py`, trocar o `return await controllers.get_al
     return aluno
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS (todos).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/src/consultoria.py backend/src/routes/sessoes.py backend/src/routes/prescricoes.py backend/src/routes/meu_perfil.py backend/tests/test_consultoria.py
@@ -834,7 +834,7 @@ git commit -m "feat: trava de acesso do aluno com consultoria vencida"
   ```
   Ambas as listas vêm ordenadas por `dias_restantes` crescente e incluem valores negativos (já vencido/terminado). Só alunos com `status == "ativo"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Acrescentar a `backend/tests/test_consultoria.py`:
 
@@ -886,12 +886,12 @@ async def test_avisos_negado_para_aluno(ac: AsyncClient, como_usuario):
 
 Antes de rodar, conferir a assinatura de `PATCH /alunos/{id}/status` em `backend/src/routes/alunos.py`: `status: StatusAluno` sem `Body` é query param, então `params={"status": "suspenso"}` está correto.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest tests/test_consultoria.py -q`
 Expected: FAIL (404 em `/avisos/`).
 
-- [ ] **Step 3: Schemas**
+- [x] **Step 3: Schemas**
 
 Em `backend/src/schemas.py`, ao final:
 
@@ -916,7 +916,7 @@ class AvisosPublic(BaseModel):
     programas: List[AvisoPrograma]
 ```
 
-- [ ] **Step 4: Controller**
+- [x] **Step 4: Controller**
 
 Em `backend/src/controllers.py`, trocar `from datetime import datetime, date` por `from datetime import datetime, date, timedelta`, acrescentar `from collections import defaultdict` e, após `excluir_aluno`:
 
@@ -965,7 +965,7 @@ async def listar_avisos(db: AsyncSession, trainer_id: int | None = None) -> dict
     return {"consultorias": consultorias, "programas": programas}
 ```
 
-- [ ] **Step 5: Router**
+- [x] **Step 5: Router**
 
 Criar `backend/src/routes/avisos.py`:
 
@@ -995,12 +995,12 @@ Em `backend/src/api.py`, acrescentar `avisos` ao final da linha `from src.routes
 app.include_router(avisos.router)
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd backend && SECRET_KEY="test-secret-key-for-local-pytest-0123456789" .venv/bin/python -m pytest -q`
 Expected: PASS (todos).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/src/routes/avisos.py backend/src/controllers.py backend/src/schemas.py backend/src/api.py backend/tests/test_consultoria.py
@@ -1025,7 +1025,7 @@ git commit -m "feat: endpoint de avisos de consultoria e fim de programa"
 
 Não há testes de frontend neste repo. A verificação é lint + build + checagem manual (Step 7).
 
-- [ ] **Step 1: `api.js`**
+- [x] **Step 1: `api.js`**
 
 Após `financeiroService`:
 
@@ -1035,7 +1035,7 @@ export const avisoService = {
 };
 ```
 
-- [ ] **Step 2: `FormAlunoModal.jsx`**
+- [x] **Step 2: `FormAlunoModal.jsx`**
 
 1. Nos três objetos de estado do formulário (o `useState` inicial e os dois `setFormData` do `useEffect`), acrescentar:
    - estado inicial e reset: `modalidade: 'presencial', data_vencimento_consultoria: '', bloquear_apos_vencimento: false,`
@@ -1112,7 +1112,7 @@ Se `accent-[var(--color-brand)]` não existir no tema, usar `accent-current text
                                     : formData.tipo_pagamento === 'mensal' ? 'Mensalidade' : 'Valor do Pacote'}
 ```
 
-- [ ] **Step 3: `ModalPagamento.jsx`**
+- [x] **Step 3: `ModalPagamento.jsx`**
 
 1. Estado inicial: acrescentar `novo_vencimento: ''` ao `formData`.
 2. No `useEffect` que acha `alunoSelecionado`, preencher o valor também para consultoria: trocar `aluno.tipo_pagamento === 'pacote'` por `(aluno.tipo_pagamento === 'pacote' || aluno.modalidade === 'consultoria')`.
@@ -1144,7 +1144,7 @@ Se `accent-[var(--color-brand)]` não existir no tema, usar `accent-current text
 
 (`Calendar` já é importado de `lucide-react` neste arquivo.)
 
-- [ ] **Step 4: `CardAvisos.jsx`**
+- [x] **Step 4: `CardAvisos.jsx`**
 
 Criar `frontend/src/features/alunos/CardAvisos.jsx`:
 
@@ -1205,7 +1205,7 @@ export const CardAvisos = ({ onSelectAluno }) => {
 
 Antes de usar `bg-warning`/`text-warning`, conferir se o token existe: `grep -n "warning" frontend/src/index.css frontend/tailwind.config.* 2>/dev/null`. Se não existir, usar os tokens de `danger` com opacidade (`bg-danger/5 border-danger/20 text-danger`).
 
-- [ ] **Step 5: `ListaAlunos.jsx`**
+- [x] **Step 5: `ListaAlunos.jsx`**
 
 1. Import: `import { CardAvisos } from './CardAvisos';`
 2. Logo após o `<div className="flex justify-between items-center px-2">...</div>` do cabeçalho "Alunos", inserir `<CardAvisos onSelectAluno={onSelectAluno} />`.
@@ -1227,7 +1227,7 @@ por:
                                                 : 'Plano Mensal'}
 ```
 
-- [ ] **Step 6: `DetalheAluno.jsx`**
+- [x] **Step 6: `DetalheAluno.jsx`**
 
 1. No bloco "Créditos / Vencimento" (~linha 295), trocar `{aluno.tipo_pagamento === 'pacote' ? (` pelo ramo de consultoria primeiro:
 
@@ -1267,7 +1267,7 @@ por:
 
 Ajustar o wrapper se o badge existente não estiver num container flex: envolver badge existente + novos em `<div className="flex flex-wrap gap-2">`.
 
-- [ ] **Step 7: Verificar**
+- [x] **Step 7: Verificar**
 
 Run: `cd frontend && npx eslint src/ && npm run build`
 Expected: sem erros de lint; build ok.
@@ -1278,7 +1278,7 @@ Checagem manual (backend local com SQLite não existe nesta máquina; usar `npm 
 3. Registrar pagamento para ele: campo "Novo Vencimento" aparece, "Qtd. de Aulas" some. Salvar com +90 dias: aviso some.
 4. Editar um aluno presencial: campos de pacote/mensal iguais a antes.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add frontend/src/services/api.js frontend/src/features/alunos/FormAlunoModal.jsx frontend/src/features/pagamentos/ModalPagamento.jsx frontend/src/features/alunos/CardAvisos.jsx frontend/src/features/alunos/ListaAlunos.jsx frontend/src/features/alunos/DetalheAluno.jsx
@@ -1301,7 +1301,7 @@ git commit -m "feat: painel com modalidade consultoria, avisos e renovação no 
 **Interfaces:**
 - Consumes: `GET /alunos/me` com `acesso_bloqueado`, `modalidade`, `dias_para_vencimento_consultoria`, `dias_para_fim_programa` (Tasks 2 e 4); 403 com `message == "consultoria_vencida"` (Task 4).
 
-- [ ] **Step 1: Checar o estado do repo — PARAR se sujo**
+- [x] **Step 1: Checar o estado do repo — PARAR se sujo**
 
 Run: `cd ~/Documentos/projetos/ptroster-alunos && git status --short`
 
@@ -1309,7 +1309,7 @@ Em 2026-10-15 havia mudanças não commitadas na `main` (`PRODUCT.md`, `package.
 
 Com o repo limpo: `git checkout -b feat/consultoria`.
 
-- [ ] **Step 2: Interceptor do 403**
+- [x] **Step 2: Interceptor do 403**
 
 Em `src/services/api.js`, dentro do interceptor de resposta, antes do `return Promise.reject(error);`:
 
@@ -1320,7 +1320,7 @@ Em `src/services/api.js`, dentro do interceptor de resposta, antes do `return Pr
     }
 ```
 
-- [ ] **Step 3: `AuthContext` ouve o evento**
+- [x] **Step 3: `AuthContext` ouve o evento**
 
 Em `src/contexts/AuthContext.jsx`, acrescentar um `useEffect` após o `useEffect` de inicialização:
 
@@ -1335,7 +1335,7 @@ Em `src/contexts/AuthContext.jsx`, acrescentar um `useEffect` após o `useEffect
   }, [loadAluno]);
 ```
 
-- [ ] **Step 4: Tela de bloqueio**
+- [x] **Step 4: Tela de bloqueio**
 
 Criar `src/components/BloqueioConsultoria.jsx`:
 
@@ -1370,7 +1370,7 @@ Em `src/App.jsx`, dentro de `ProtectedLayout`, pegar `aluno` do `useAuth()` e, a
 
 com `import { BloqueioConsultoria } from './components/BloqueioConsultoria';` e `const { user, loading, aluno } = useAuth();`.
 
-- [ ] **Step 5: Banner**
+- [x] **Step 5: Banner**
 
 Criar `src/components/BannerAvisos.jsx`:
 
@@ -1403,14 +1403,14 @@ Ajustar as cores aos tokens do portal (tema escuro; conferir `src/index.css`).
 
 Em `src/pages/Dashboard.jsx`, importar `BannerAvisos` e renderizar `<BannerAvisos aluno={aluno} />` logo após o cabeçalho, usando o `aluno` que a página já obtém via `useAluno()`/`useAuth()` (conferir o nome da variável na página).
 
-- [ ] **Step 6: Verificar**
+- [x] **Step 6: Verificar**
 
 Run: `cd ~/Documentos/projetos/ptroster-alunos && npm run lint && npm test && npm run build`
 Expected: lint sem erros, testes do vitest passando, build ok.
 
 Checagem manual com backend da branch: aluno com consultoria vencida + trava vê a tela de bloqueio após login; com vencimento em 3 dias vê o banner; aluno presencial sem plano terminando não vê banner.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/components/BloqueioConsultoria.jsx src/components/BannerAvisos.jsx src/App.jsx src/services/api.js src/contexts/AuthContext.jsx src/pages/Dashboard.jsx
