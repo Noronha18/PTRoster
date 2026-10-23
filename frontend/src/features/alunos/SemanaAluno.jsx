@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { alunoService } from '../../services/api';
 import { DIAS_SEMANA } from '../../constants/treino';
@@ -30,18 +30,22 @@ export function SemanaAluno({ alunoId }) {
     const [dados, setDados] = useState(null);
     const [loading, setLoading] = useState(true);
     const [erro, setErro] = useState(null);
+    const requestAtual = useRef(0);
 
     const carregar = useCallback(async () => {
+        const requestId = ++requestAtual.current;
         try {
             setLoading(true);
             setErro(null);
             const data = await alunoService.semana(alunoId, ref);
+            if (requestId !== requestAtual.current) return;
             setDados(data);
         } catch (err) {
+            if (requestId !== requestAtual.current) return;
             setErro(err.message || 'Falha ao carregar a semana');
             setDados(null);
         } finally {
-            setLoading(false);
+            if (requestId === requestAtual.current) setLoading(false);
         }
     }, [alunoId, ref]);
 
@@ -49,7 +53,9 @@ export function SemanaAluno({ alunoId }) {
 
     const totalPlanejado = dados?.volumes?.reduce((soma, v) => soma + v.planejado, 0) ?? 0;
     const totalRealizado = dados?.volumes?.reduce((soma, v) => soma + v.realizado, 0) ?? 0;
-    const aderencia = totalPlanejado > 0 ? Math.round((totalRealizado / totalPlanejado) * 100) : 0;
+    const aderencia = totalPlanejado > 0
+        ? `${Math.round((totalRealizado / totalPlanejado) * 100)}%`
+        : '—';
 
     return (
         <div className="bg-surface border border-border rounded-xl p-6 shadow-sm space-y-6">
@@ -110,7 +116,7 @@ export function SemanaAluno({ alunoId }) {
                         </div>
                         <div className="bg-overlay border border-border rounded-xl p-4">
                             <p className="text-2xs font-black text-text-muted uppercase tracking-widest">Aderência</p>
-                            <p className="text-2xl font-black text-accent mt-1 tabular-nums">{aderencia}%</p>
+                            <p className="text-2xl font-black text-accent mt-1 tabular-nums">{aderencia}</p>
                             <p className="text-2xs text-text-muted font-bold uppercase tracking-widest">do volume</p>
                         </div>
                     </div>
@@ -118,7 +124,7 @@ export function SemanaAluno({ alunoId }) {
                     <div>
                         <h4 className="text-xs font-black text-text-muted uppercase tracking-widest mb-3">Treinos</h4>
                         {dados.treinos.length === 0 ? (
-                            <p className="text-xs text-text-muted italic py-4">Nenhum plano ativo.</p>
+                            <p className="text-xs text-text-muted italic py-4">Nenhum treino planejado ou realizado.</p>
                         ) : (
                             <div className="space-y-2">
                                 {dados.treinos.map((treino) => {

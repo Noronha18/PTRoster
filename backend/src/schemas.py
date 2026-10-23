@@ -22,6 +22,7 @@ class ExercicioBase(BaseModel):
     grupo_muscular: str
     video_url: Optional[str] = None
 
+class ExercicioCreate(ExercicioBase):
     @field_validator("nome")
     @classmethod
     def _nome_limpo(cls, nome: str) -> str:
@@ -37,10 +38,8 @@ class ExercicioBase(BaseModel):
             )
         return canonico
 
-class ExercicioCreate(ExercicioBase):
-    pass
-
 class ExercicioPublic(ExercicioBase):
+    """Leitura permissiva: dados legados não podem quebrar a resposta da API."""
     id: int
     model_config = ConfigDict(from_attributes=True)
 

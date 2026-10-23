@@ -289,3 +289,152 @@ async def test_semana_sem_plano_ativo(ac: AsyncClient):
     assert res.status_code == 200, res.text
     assert res.json()["treinos"] == []
     assert res.json()["volumes"] == []
+
+
+@pytest.mark.anyio
+async def test_semana_inclui_treino_do_plano_anterior_apos_troca(ac: AsyncClient):
+    """Trocar o plano não pode zerar a aderência dos treinos já feitos na semana."""
+    hoje = consultoria.hoje()
+    inicio = hoje - timedelta(days=hoje.weekday())
+    ex = await _criar_exercicio(ac, "Supino Troca Plano", "Peito")
+    aluno_id = await _criar_aluno(ac)
+    plano_antigo = await _criar_plano(ac, aluno_id, [{
+        "nome": "Treino Antigo",
+        "vezes_por_semana": 1,
+        "prescricoes": [{"exercicio_id": ex, "series": 3, "repeticoes": "10"}],
+    }])
+    await _executar(
+        ac, aluno_id, _prescricoes(plano_antigo),
+        datetime.combine(inicio, time(10, 0)),
+    )
+
+    await _criar_plano(ac, aluno_id, [{
+        "nome": "Treino Novo",
+        "vezes_por_semana": 1,
+        "prescricoes": [{"exercicio_id": ex, "series": 3, "repeticoes": "10"}],
+    }])
+
+    res = await ac.get(f"/alunos/{aluno_id}/semana", params={"ref": hoje.isoformat()})
+    assert res.status_code == 200, res.text
+    por_nome = {treino["treino_nome"]: treino for treino in res.json()["treinos"]}
+    assert por_nome["Treino Antigo"]["feitas"] == 1
+    assert por_nome["Treino Novo"]["feitas"] == 0
+
+
+@pytest.mark.anyio
+async def test_semana_usa_plano_vigente_na_data_de_referencia(ac: AsyncClient, db):
+    """Ao consultar uma semana passada, o planejado deve vir do plano daquela data."""
+    hoje = consultoria.hoje()
+    inicio = hoje - timedelta(days=hoje.weekday())
+    semana_passada = inicio - timedelta(days=7)
+    ex = await _criar_exercicio(ac, "Supino Historico", "Peito")
+    aluno_id = await _criar_aluno(ac)
+    plano_antigo = await _criar_plano(ac, aluno_id, [{
+        "nome": "Treino Antigo",
+        "vezes_por_semana": 2,
+        "prescricoes": [{"exercicio_id": ex, "series": 4, "repeticoes": "10"}],
+    }])
+
+    plano_db = await db.get(models.PlanoTreino, plano_antigo["id"])
+    plano_db.data_inicio = semana_passada - timedelta(days=7)
+    await db.commit()
+
+    await _executar(
+        ac, aluno_id, _prescricoes(plano_antigo),
+        datetime.combine(semana_passada, time(10, 0)),
+    )
+    await _criar_plano(ac, aluno_id, [{
+        "nome": "Treino Novo",
+        "vezes_por_semana": 1,
+        "prescricoes": [{"exercicio_id": ex, "series": 1, "repeticoes": "10"}],
+    }])
+
+    res = await ac.get(
+        f"/alunos/{aluno_id}/semana", params={"ref": semana_passada.isoformat()}
+    )
+    assert res.status_code == 200, res.text
+    corpo = res.json()
+    assert [treino["treino_nome"] for treino in corpo["treinos"]] == ["Treino Antigo"]
+    assert corpo["treinos"][0]["feitas"] == 1
+    peito = next(volume for volume in corpo["volumes"] if volume["grupo"] == "Peito")
+    assert peito["planejado"] == 8  # 4 séries × 2 vezes no plano antigo
+
+
+@pytest.mark.anyio
+async def test_atualizar_plano_preserva_planejamento_semanal(ac: AsyncClient):
+    ex = await _criar_exercicio(ac, "Supino Update Semana", "Peito")
+    aluno_id = await _criar_aluno(ac)
+    plano = await _criar_plano(ac, aluno_id, [{
+        "nome": "Treino A",
+        "vezes_por_semana": 3,
+        "dias_sugeridos": [0, 2, 4],
+        "prescricoes": [{"exercicio_id": ex, "series": 4, "repeticoes": "10"}],
+    }])
+    treino = plano["treinos"][0]
+    prescricao = treino["prescricoes"][0]
+
+    res = await ac.patch(f"/planos/{plano['id']}", json={
+        "treinos": [{
+            "id": treino["id"],
+            "nome": treino["nome"],
+            "prescricoes": [{
+                "id": prescricao["id"],
+                "exercicio_id": prescricao["exercicio_id"],
+                "series": prescricao["series"],
+                "repeticoes": prescricao["repeticoes"],
+            }],
+        }],
+    })
+    assert res.status_code == 200, res.text
+    atualizado = res.json()["treinos"][0]
+    assert atualizado["vezes_por_semana"] == 3
+    assert atualizado["dias_sugeridos"] == [0, 2, 4]
+
+
+@pytest.mark.anyio
+async def test_media_de_4_semanas_respeita_limite_inferior(ac: AsyncClient):
+    hoje = consultoria.hoje()
+    inicio = hoje - timedelta(days=hoje.weekday())
+    ex = await _criar_exercicio(ac, "Supino Limite Media", "Peito")
+    aluno_id = await _criar_aluno(ac)
+    plano = await _criar_plano(ac, aluno_id, [{
+        "nome": "Treino A",
+        "prescricoes": [{"exercicio_id": ex, "series": 3, "repeticoes": "10"}],
+    }])
+    prescricoes = _prescricoes(plano)
+
+    # A segunda-feira de 3 semanas atrás entra; o domingo anterior fica fora.
+    await _executar(
+        ac, aluno_id, prescricoes, datetime.combine(inicio - timedelta(days=21), time(10, 0))
+    )
+    await _executar(
+        ac, aluno_id, prescricoes, datetime.combine(inicio - timedelta(days=22), time(10, 0))
+    )
+
+    res = await ac.get(f"/alunos/{aluno_id}/semana", params={"ref": hoje.isoformat()})
+    assert res.status_code == 200, res.text
+    peito = next(volume for volume in res.json()["volumes"] if volume["grupo"] == "Peito")
+    assert peito["media_4_semanas"] == 0.8  # apenas 3 séries da semana limite / 4
+
+
+@pytest.mark.anyio
+async def test_semana_ignora_sessao_nao_realizada_e_sem_treino(ac: AsyncClient, db):
+    hoje = consultoria.hoje()
+    inicio = hoje - timedelta(days=hoje.weekday())
+    ex = await _criar_exercicio(ac, "Supino Flags", "Peito")
+    aluno_id = await _criar_aluno(ac)
+    plano = await _criar_plano(ac, aluno_id, [{
+        "nome": "Treino A",
+        "prescricoes": [{"exercicio_id": ex, "series": 3, "repeticoes": "10"}],
+    }])
+    treino_id = plano["treinos"][0]["id"]
+    data = datetime.combine(inicio, time(10, 0))
+
+    db.add(models.SessaoTreino(aluno_id=aluno_id, treino_id=treino_id, data_hora=data, realizada=True))
+    db.add(models.SessaoTreino(aluno_id=aluno_id, treino_id=treino_id, data_hora=data, realizada=False))
+    db.add(models.SessaoTreino(aluno_id=aluno_id, treino_id=None, data_hora=data, realizada=True))
+    await db.commit()
+
+    res = await ac.get(f"/alunos/{aluno_id}/semana", params={"ref": hoje.isoformat()})
+    assert res.status_code == 200, res.text
+    assert res.json()["treinos"][0]["feitas"] == 1

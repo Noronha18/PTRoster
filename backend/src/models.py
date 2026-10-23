@@ -76,6 +76,9 @@ class Pagamento(Base):
 
 class SessaoTreino(Base):
     __tablename__ = 'sessoes_treino'
+    __table_args__ = (
+        Index('ix_sessoes_treino_aluno_data_hora', 'aluno_id', 'data_hora'),
+    )
 
     id = Column(Integer, primary_key=True)
     aluno_id = Column(Integer, ForeignKey('alunos.id', ondelete='CASCADE'))

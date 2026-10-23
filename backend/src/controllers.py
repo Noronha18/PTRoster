@@ -886,7 +886,14 @@ async def evolucao_exercicio(
         ]
     return {"exercicios": [{"id": i, "nome": n} for i, n in exercicios], "semanas": semanas}
 
-async def _plano_ativo_do_aluno(db: AsyncSession, aluno_id: int) -> models.PlanoTreino | None:
+async def _plano_do_aluno_na_data(
+    db: AsyncSession, aluno_id: int, ref: date
+) -> models.PlanoTreino | None:
+    """Plano mais recente que já tinha começado na data de referência.
+
+    Não filtra por esta_ativo: ao consultar uma semana passada, o correto é usar
+    o plano daquela data, mesmo que ele já tenha sido substituído.
+    """
     stmt = (
         select(models.PlanoTreino)
         .options(
@@ -894,7 +901,10 @@ async def _plano_ativo_do_aluno(db: AsyncSession, aluno_id: int) -> models.Plano
             .selectinload(models.Treino.prescricoes)
             .selectinload(models.Prescricao.exercicio)
         )
-        .where(models.PlanoTreino.aluno_id == aluno_id, models.PlanoTreino.esta_ativo)
+        .where(
+            models.PlanoTreino.aluno_id == aluno_id,
+            models.PlanoTreino.data_inicio <= ref,
+        )
         .order_by(models.PlanoTreino.data_inicio.desc(), models.PlanoTreino.id.desc())
         .limit(1)
     )
@@ -966,7 +976,7 @@ async def resumo_semana(
     inicio_dt = datetime.combine(inicio, datetime.min.time())
     fim_dt = datetime.combine(inicio + timedelta(days=7), datetime.min.time())
 
-    plano = await _plano_ativo_do_aluno(db, aluno_id)
+    plano = await _plano_do_aluno_na_data(db, aluno_id, ref)
     feitas, dias = await _sessoes_por_treino(db, aluno_id, inicio_dt, fim_dt)
     realizado = await _series_por_grupo(db, aluno_id, inicio_dt, fim_dt)
 
@@ -990,6 +1000,18 @@ async def resumo_semana(
         for grupo in grupos
     ]
 
+    treinos_do_plano = list(plano.treinos) if plano else []
+    ids_do_plano = {treino.id for treino in treinos_do_plano}
+    ids_extras = [treino_id for treino_id in feitas if treino_id not in ids_do_plano]
+    treinos_extras = []
+    if ids_extras:
+        # Sessões antigas continuam contando mesmo depois de uma troca de plano.
+        treinos_extras = list((await db.scalars(
+            select(models.Treino)
+            .where(models.Treino.id.in_(ids_extras))
+            .order_by(models.Treino.plano_id, models.Treino.ordem, models.Treino.id)
+        )).all())
+
     treinos = [
         {
             "treino_id": treino.id,
@@ -999,7 +1021,7 @@ async def resumo_semana(
             "feitas": feitas.get(treino.id, 0),
             "dias_feitos": sorted(dias.get(treino.id, set())),
         }
-        for treino in (plano.treinos if plano else [])
+        for treino in treinos_do_plano + treinos_extras
     ]
 
     resposta = {

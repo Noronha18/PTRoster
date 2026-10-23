@@ -1,5 +1,6 @@
 import asyncio
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.database import SessionLocal
 from src.models import Exercicio
@@ -85,13 +86,19 @@ async def _run_seed(db: AsyncSession):
     novos = 0
     videos_atualizados = 0
     for ex_data in exercicios_base:
-        stmt = select(Exercicio).where(Exercicio.nome == ex_data["nome"])
+        # O índice único é lower(nome); a busca também precisa ignorar caixa.
+        stmt = select(Exercicio).where(
+            func.lower(Exercicio.nome) == ex_data["nome"].strip().lower()
+        )
         result = await db.execute(stmt)
         existente = result.scalar_one_or_none()
         if existente is None:
             db.add(Exercicio(**ex_data))
             novos += 1
         else:
+            # Canoniza a caixa do nome para a grafia oficial da biblioteca.
+            if existente.nome != ex_data["nome"]:
+                existente.nome = ex_data["nome"]
             if not existente.video_url and ex_data.get("video_url"):
                 # Preenche vídeo em exercícios já cadastrados que ainda não têm
                 existente.video_url = ex_data["video_url"]
@@ -100,7 +107,13 @@ async def _run_seed(db: AsyncSession):
             if existente.grupo_muscular != ex_data["grupo_muscular"]:
                 existente.grupo_muscular = ex_data["grupo_muscular"]
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise RuntimeError(
+            "Não foi possível atualizar a biblioteca: há nomes de exercícios duplicados."
+        ) from exc
     print(f"✅ Sucesso! {novos} novos exercícios adicionados, {videos_atualizados} vídeos preenchidos.")
     return novos + videos_atualizados
 

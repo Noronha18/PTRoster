@@ -55,6 +55,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
       if (planoEdicao) {
         setNovoPlano({ ...planoEdicao, detalhes: planoEdicao.detalhes || '' });
         setStep(2);
+        setActiveTreinoIndex(0);
       } else {
         setNovoPlano({
           titulo: '', objetivo_estrategico: '', detalhes: '',
@@ -91,6 +92,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
 
   const handleAddFromLibrary = (ex) => {
     const updated = [...novoPlano.treinos];
+    if (!updated[activeTreinoIndex]) return;
     updated[activeTreinoIndex].prescricoes.push({
       exercicio_id: ex.id,
       nome_exercicio: ex.nome,
@@ -113,6 +115,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
 
   const handleTreinoChange = (tIndex, campo, valor) => {
     const updated = [...novoPlano.treinos];
+    if (!updated[tIndex]) return;
     updated[tIndex][campo] = valor;
     setNovoPlano({ ...novoPlano, treinos: updated });
   };
@@ -124,11 +127,13 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
   };
 
   const toggleDia = (dia) => {
-    const atuais = novoPlano.treinos[activeTreinoIndex].dias_sugeridos || [];
+    const treino = novoPlano.treinos[activeTreinoIndex] ?? novoPlano.treinos[0];
+    if (!treino) return;
+    const atuais = treino.dias_sugeridos || [];
     const novos = atuais.includes(dia)
       ? atuais.filter((d) => d !== dia)
       : [...atuais, dia].sort((a, b) => a - b);
-    handleTreinoChange(activeTreinoIndex, 'dias_sugeridos', novos);
+    handleTreinoChange(novoPlano.treinos.indexOf(treino), 'dias_sugeridos', novos);
   };
 
   const moveTreino = (idx, dir) => {
@@ -178,25 +183,30 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
   const handleFormSubmit = () => {
     const payload = {
       ...novoPlano,
-      treinos: novoPlano.treinos.map(t => ({
-        ...t,
-        prescricoes: t.prescricoes.map(p => ({
-          id: p.id || null,
-          exercicio_id: parseInt(p.exercicio_id),
-          series: parseInt(p.series) || 1,
-          repeticoes: p.repeticoes,
-          carga: p.carga || null,
-          descanso: parseInt(p.descanso) || 0,
-          metodo: p.metodo,
-          observacoes: p.observacoes || null
-        }))
-      }))
+      treinos: novoPlano.treinos.map((t) => {
+        const vezes = Number.parseInt(t.vezes_por_semana, 10);
+        return {
+          ...t,
+          vezes_por_semana: Number.isNaN(vezes) ? 1 : Math.min(7, Math.max(1, vezes)),
+          dias_sugeridos: Array.isArray(t.dias_sugeridos) ? t.dias_sugeridos : [],
+          prescricoes: t.prescricoes.map(p => ({
+            id: p.id || null,
+            exercicio_id: parseInt(p.exercicio_id),
+            series: parseInt(p.series) || 1,
+            repeticoes: p.repeticoes,
+            carga: p.carga || null,
+            descanso: parseInt(p.descanso) || 0,
+            metodo: p.metodo,
+            observacoes: p.observacoes || null
+          }))
+        };
+      })
     };
     onSave(payload);
   };
 
-  const prescricoes = novoPlano.treinos[activeTreinoIndex]?.prescricoes ?? [];
-  const treinoAtivo = novoPlano.treinos[activeTreinoIndex];
+  const treinoAtivo = novoPlano.treinos[activeTreinoIndex] ?? novoPlano.treinos[0] ?? null;
+  const prescricoes = treinoAtivo?.prescricoes ?? [];
 
   const volumePorGrupo = {};
   novoPlano.treinos.forEach((t) => {
@@ -394,7 +404,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
                       <input
                         type="text"
                         className="w-full bg-transparent text-xl md:text-2xl font-black text-text-primary outline-none placeholder:text-text-muted"
-                        value={novoPlano.treinos[activeTreinoIndex].nome}
+                        value={treinoAtivo?.nome ?? ''}
                         onChange={e => handleTreinoChange(activeTreinoIndex, 'nome', e.target.value)}
                         placeholder="Ex: A — Peito e Tríceps"
                       />

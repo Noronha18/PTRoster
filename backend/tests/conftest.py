@@ -64,3 +64,10 @@ async def ac(como_usuario):
     como_usuario(TRAINER_A)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+async def db():
+    """Sessão direta no mesmo banco em memória, para preparar dados legados."""
+    async with SessionTeste() as session:
+        yield session
