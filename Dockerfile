@@ -25,8 +25,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # Copia arquivos de dependências do backend e o README (necessário para o pyproject.toml)
 COPY backend/pyproject.toml backend/uv.lock README.md ./
 
-# Instala as dependências diretamente no sistema do container
-RUN uv pip install --system -r pyproject.toml
+# Instala exatamente as versões travadas no uv.lock (sem as de dev).
+# Ler só o pyproject.toml pegava versões novas e não testadas: o SQLAlchemy 2.1
+# deixou de instalar o greenlet e o alembic quebrava na subida.
+RUN uv export --locked --no-dev --no-emit-project --no-hashes -o /tmp/requirements.txt \
+    && uv pip install --system -r /tmp/requirements.txt
 
 # Cria um usuário não-privilegiado para rodar o app (Hardening)
 RUN useradd -m -u 1000 appuser
