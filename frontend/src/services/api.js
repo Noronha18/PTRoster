@@ -163,7 +163,10 @@ export const authService = {
             body: formData,
         });
 
-        if (!response.ok) throw new Error('Usuário ou senha inválidos');
+        if (!response.ok) {
+            const erro = await response.json().catch(() => ({}));
+            throw new Error(erro.message || 'Usuário ou senha inválidos');
+        }
 
         const data = await response.json();
         localStorage.setItem('token', data.access_token);
@@ -184,6 +187,17 @@ export function getUserRole() {
         return null;
     }
 }
+
+export const operacoesService = {
+    listarPersonais: () => apiFetch('/admin/operacoes/personais'),
+    alunosDoPersonal: (personalId) => apiFetch(`/admin/operacoes/personais/${personalId}/alunos`),
+    sessoesDoAluno: (alunoId, limite = 20) =>
+        apiFetch(`/admin/operacoes/alunos/${alunoId}/sessoes?limite=${limite}`),
+    definirAtivo: (usuarioId, ativo) => apiFetch(`/admin/usuarios/${usuarioId}/ativo`, {
+        method: 'PATCH',
+        body: JSON.stringify({ ativo }),
+    }),
+};
 
 export const adminService = {
     listarUsuarios: () => apiFetch('/admin/usuarios'),

@@ -75,7 +75,7 @@ function App() {
               { id: 'alunos', label: 'Alunos' },
               { id: 'treinos', label: 'Treinos' },
               { id: 'financeiro', label: 'Financeiro' },
-              ...(userRole === 'admin' ? [{ id: 'admin', label: 'Admin' }] : []),
+              ...(userRole === 'admin' ? [{ id: 'admin', label: 'Operações' }] : []),
             ].map((aba) => (
               <button
                 key={aba.id}

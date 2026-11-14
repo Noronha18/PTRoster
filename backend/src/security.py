@@ -68,7 +68,15 @@ async def get_current_user(
     
     if user is None:
         raise credentials_exception
-        
+
+    if not user.is_active:
+        # 401 para o painel limpar o token e voltar ao login.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Conta desativada. Fale com o administrador.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 async def get_current_trainer(

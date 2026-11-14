@@ -384,6 +384,46 @@ class UsuarioAdminPublic(BaseModel):
     aluno_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
+class UsuarioAtivoUpdate(BaseModel):
+    ativo: bool
+
+class PersonalOperacoes(BaseModel):
+    """Linha da tela Operações: uso do personal e dos alunos dele."""
+    id: int
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    data_criacao: Optional[datetime] = None
+    ultimo_acesso: Optional[datetime] = None
+    alunos_ativos: int = 0
+    alunos_total: int = 0
+    treinos_7d: int = 0
+    ultimo_treino: Optional[datetime] = None
+    # Etapa 4 preenche com em_dia/atrasada/vence_em_breve; até lá, todos sem plano.
+    situacao_mensalidade: str = "sem_plano"
+
+class AlunoOperacoes(BaseModel):
+    id: int
+    nome: str
+    status: str
+    modalidade: str
+    tem_login: bool = False
+    ultimo_acesso: Optional[datetime] = None
+    ultimo_treino: Optional[datetime] = None
+    treinos_7d: int = 0
+
+class SessaoOperacoes(BaseModel):
+    id: int
+    data_hora: Optional[datetime] = None
+    treino_id: Optional[int] = None
+    treino_nome: Optional[str] = None
+    realizada: bool = True
+    tipo_atividade: Optional[str] = None
+    registrado_por: Optional[str] = None
+    observacoes_performance: Optional[str] = None
+    motivo_ausencia: Optional[str] = None
+
 class VerificarSenhaRequest(BaseModel):
     senha: str
 

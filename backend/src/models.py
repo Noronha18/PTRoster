@@ -14,6 +14,7 @@ class Usuario(Base):
     role = Column(String, default="aluno")  # "trainer" ou "aluno"
     is_active = Column(Boolean, default=True)
     data_criacao = Column(DateTime, default=datetime.now)
+    ultimo_acesso = Column(DateTime, nullable=True)
 
     # Vínculo com o Aluno (opcional para trainers, obrigatório para alunos)
     aluno_id = Column(Integer, ForeignKey('alunos.id', ondelete='SET NULL'), nullable=True)
