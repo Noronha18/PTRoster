@@ -133,7 +133,15 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
     const novos = atuais.includes(dia)
       ? atuais.filter((d) => d !== dia)
       : [...atuais, dia].sort((a, b) => a - b);
-    handleTreinoChange(novoPlano.treinos.indexOf(treino), 'dias_sugeridos', novos);
+    const updated = [...novoPlano.treinos];
+    const idx = updated.indexOf(treino);
+    // Os dias marcados definem a frequência; sem nenhum dia, mantém o número digitado.
+    updated[idx] = {
+      ...treino,
+      dias_sugeridos: novos,
+      vezes_por_semana: novos.length > 0 ? novos.length : treino.vezes_por_semana,
+    };
+    setNovoPlano({ ...novoPlano, treinos: updated });
   };
 
   const moveTreino = (idx, dir) => {
