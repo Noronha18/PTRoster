@@ -103,6 +103,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
             setPlanoEdicao(null);
         } catch (err) {
             toast({ tipo: 'erro', texto: 'Erro ao salvar plano: ' + err.message });
+            return false;
         }
     };
 
@@ -516,6 +517,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                 onClose={() => { setIsModalPlanoOpen(false); setPlanoEdicao(null); }}
                 onSave={handleSavePlano}
                 planoEdicao={planoEdicao}
+                chaveRascunho={`aluno_${alunoId}`}
             />
 
             <FormAlunoModal

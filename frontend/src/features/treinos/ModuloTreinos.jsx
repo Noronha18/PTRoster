@@ -47,6 +47,7 @@ export const ModuloTreinos = () => {
             setTimeout(() => setMensagem({ tipo: '', texto: '' }), 3000);
         } catch (err) {
             setMensagem({ tipo: 'erro', texto: 'Erro ao salvar o plano: ' + err.message });
+            return false;
         } finally {
             setLoading(false);
         }
@@ -160,6 +161,7 @@ export const ModuloTreinos = () => {
                 onClose={() => { setIsModalOpen(false); setTemplateEdicao(null); }}
                 onSave={handleSavePlano}
                 planoEdicao={templateEdicao}
+                chaveRascunho="modelo"
             />
         </div>
     );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Dumbbell, Trash2, Plus, Save, Book, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { X, Dumbbell, Trash2, Plus, Save, Book, ChevronRight, ChevronLeft, GripVertical, CheckCircle2 } from 'lucide-react';
 import { treinoService } from '../../services/api';
 import { BibliotecaExercicios } from '../treinos/BibliotecaExercicios';
 import { useToast } from '../../components/ToastProvider';
@@ -21,13 +21,92 @@ const METHOD_BG = {
   'Super-set': 'bg-method-super/8',
 };
 
-export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }) {
+// Rascunho no navegador: se a montagem do plano for interrompida (modal fechado,
+// página recarregada, sessão expirada), o trabalho volta ao reabrir o modal.
+const PREFIXO_RASCUNHO = 'ptroster_rascunho_plano_';
+
+function lerRascunho(chave) {
+  try {
+    return JSON.parse(localStorage.getItem(PREFIXO_RASCUNHO + chave));
+  } catch {
+    return null;
+  }
+}
+
+function gravarRascunho(chave, valor) {
+  try {
+    if (valor) localStorage.setItem(PREFIXO_RASCUNHO + chave, JSON.stringify(valor));
+    else localStorage.removeItem(PREFIXO_RASCUNHO + chave);
+  } catch {
+    // modo privado ou armazenamento cheio: segue sem rascunho
+  }
+}
+
+// Reordenar arrastando um puxador: eventos de ponteiro funcionam com mouse e com
+// toque (o arrastar nativo do HTML não funciona no celular). As setas do teclado
+// também movem, para quem não usa mouse.
+function useReordenar(atributo, mover, eixo = 'vertical') {
+  const [arrastando, setArrastando] = useState(null);
+  const atualRef = useRef(null);
+
+  const soltar = () => { atualRef.current = null; setArrastando(null); };
+
+  const puxador = (idx, total) => ({
+    onPointerDown: (e) => {
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      atualRef.current = idx;
+      setArrastando(idx);
+    },
+    onPointerMove: (e) => {
+      const de = atualRef.current;
+      if (de === null) return;
+      const alvo = document.elementFromPoint(e.clientX, e.clientY)?.closest(`[${atributo}]`);
+      if (!alvo) return;
+      const para = Number(alvo.getAttribute(atributo));
+      if (Number.isNaN(para) || para === de) return;
+      mover(de, para);
+      atualRef.current = para;
+      setArrastando(para);
+    },
+    onPointerUp: soltar,
+    onPointerCancel: soltar,
+    onKeyDown: (e) => {
+      const antes = eixo === 'vertical' ? 'ArrowUp' : 'ArrowLeft';
+      const depois = eixo === 'vertical' ? 'ArrowDown' : 'ArrowRight';
+      if (e.key === antes && idx > 0) { e.preventDefault(); mover(idx, idx - 1); }
+      if (e.key === depois && idx < total - 1) { e.preventDefault(); mover(idx, idx + 1); }
+    },
+  });
+
+  return { arrastando, puxador };
+}
+
+const moverItem = (lista, de, para) => {
+  const nova = [...lista];
+  const [item] = nova.splice(de, 1);
+  nova.splice(para, 0, item);
+  return nova;
+};
+
+const planoVazio = () => ({
+  titulo: '', objetivo_estrategico: '', detalhes: '',
+  duracao_semanas: 4,
+  treinos: [{ nome: 'Treino A', vezes_por_semana: 1, dias_sugeridos: [], prescricoes: [] }]
+});
+
+export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, chaveRascunho }) {
   const toast = useToast();
   const [step, setStep] = useState(1);
   const [activeTreinoIndex, setActiveTreinoIndex] = useState(0);
   const [mobileLibOpen, setMobileLibOpen] = useState(false);
   const [lastAddedIdx, setLastAddedIdx] = useState(null);
   const editorScrollRef = useRef(null);
+  // Chave do rascunho já carregado nesta abertura; antes disso nada é gravado.
+  const [rascunhoAtivo, setRascunhoAtivo] = useState(null);
+  const [rascunhoSalvoEm, setRascunhoSalvoEm] = useState(null);
+  const planoInicialRef = useRef('');
+  const chave = chaveRascunho ? `${chaveRascunho}_${planoEdicao?.id ?? 'novo'}` : null;
 
   const [novoPlano, setNovoPlano] = useState({
     titulo: '',
@@ -49,27 +128,47 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
     }
   };
 
+  const aplicarInicial = () => {
+    const inicial = planoEdicao ? { ...planoEdicao, detalhes: planoEdicao.detalhes || '' } : planoVazio();
+    planoInicialRef.current = JSON.stringify(inicial);
+    setNovoPlano(inicial);
+    setStep(planoEdicao ? 2 : 1);
+    setActiveTreinoIndex(0);
+    return inicial;
+  };
+
   useEffect(() => {
     if (isOpen) {
       carregarTemplates();
-      if (planoEdicao) {
-        setNovoPlano({ ...planoEdicao, detalhes: planoEdicao.detalhes || '' });
-        setStep(2);
-        setActiveTreinoIndex(0);
+      aplicarInicial();
+      const rascunho = chave ? lerRascunho(chave) : null;
+      if (rascunho?.plano) {
+        setNovoPlano(rascunho.plano);
+        setStep(rascunho.step ?? 2);
+        setRascunhoSalvoEm(rascunho.salvoEm ?? null);
       } else {
-        setNovoPlano({
-          titulo: '', objetivo_estrategico: '', detalhes: '',
-          duracao_semanas: 4,
-          treinos: [{ nome: 'Treino A', vezes_por_semana: 1, dias_sugeridos: [], prescricoes: [] }]
-        });
-        setStep(1);
-        setActiveTreinoIndex(0);
+        setRascunhoSalvoEm(null);
       }
+      setRascunhoAtivo(chave);
       setMobileLibOpen(false);
+    } else {
+      setRascunhoAtivo(null);
     }
-  }, [isOpen, planoEdicao]);
+  }, [isOpen, planoEdicao, chave]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!isOpen) return null;
+  // Grava a cada alteração; o plano intocado não vira rascunho.
+  useEffect(() => {
+    if (!isOpen || !chave || rascunhoAtivo !== chave) return;
+    if (JSON.stringify(novoPlano) === planoInicialRef.current) return;
+    gravarRascunho(chave, { plano: novoPlano, step, salvoEm: Date.now() });
+  }, [novoPlano, step, isOpen, chave, rascunhoAtivo]);
+
+  const descartarRascunho = () => {
+    if (!window.confirm('Descartar o rascunho e voltar ao plano original? As alterações não salvas serão perdidas.')) return;
+    gravarRascunho(chave, null);
+    setRascunhoSalvoEm(null);
+    aplicarInicial();
+  };
 
   const handleAddTreino = () => {
     const letras = 'BCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -144,24 +243,26 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
     setNovoPlano({ ...novoPlano, treinos: updated });
   };
 
-  const moveTreino = (idx, dir) => {
-    const alvo = idx + dir;
-    if (alvo < 0 || alvo >= novoPlano.treinos.length) return;
-    const updated = [...novoPlano.treinos];
-    [updated[idx], updated[alvo]] = [updated[alvo], updated[idx]];
-    setNovoPlano({ ...novoPlano, treinos: updated });
-    setActiveTreinoIndex(alvo);
+  // Atualização funcional: num arraste rápido vários movimentos chegam antes do próximo render.
+  const moverTreino = (de, para) => {
+    setNovoPlano((p) => ({ ...p, treinos: moverItem(p.treinos, de, para) }));
+    setActiveTreinoIndex(para);
   };
 
-  const moveExercicio = (tIndex, exIndex, dir) => {
-    const alvo = exIndex + dir;
-    const updated = [...novoPlano.treinos];
-    const lista = [...updated[tIndex].prescricoes];
-    if (alvo < 0 || alvo >= lista.length) return;
-    [lista[exIndex], lista[alvo]] = [lista[alvo], lista[exIndex]];
-    updated[tIndex] = { ...updated[tIndex], prescricoes: lista };
-    setNovoPlano({ ...novoPlano, treinos: updated });
+  const moverExercicio = (de, para) => {
+    setNovoPlano((p) => {
+      const treinos = [...p.treinos];
+      const t = treinos[activeTreinoIndex];
+      if (!t) return p;
+      treinos[activeTreinoIndex] = { ...t, prescricoes: moverItem(t.prescricoes, de, para) };
+      return { ...p, treinos };
+    });
   };
+
+  const ordemTreinos = useReordenar('data-ordem-treino', moverTreino, 'horizontal');
+  const ordemExercicios = useReordenar('data-ordem-exercicio', moverExercicio);
+
+  if (!isOpen) return null;
 
   const handleImportTemplate = (template) => {
     setNovoPlano({
@@ -188,7 +289,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
     setStep(2);
   };
 
-  const handleFormSubmit = () => {
+  const handleFormSubmit = async () => {
     const payload = {
       ...novoPlano,
       treinos: novoPlano.treinos.map((t) => {
@@ -210,7 +311,9 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
         };
       })
     };
-    onSave(payload);
+    // onSave devolve false quando a API recusa; aí o rascunho continua guardado.
+    const ok = await onSave(payload);
+    if (ok !== false && chave) gravarRascunho(chave, null);
   };
 
   const treinoAtivo = novoPlano.treinos[activeTreinoIndex] ?? novoPlano.treinos[0] ?? null;
@@ -265,6 +368,21 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
             </button>
           </div>
         </div>
+
+        {rascunhoSalvoEm && (
+          <div role="status" className="px-5 md:px-8 py-3 bg-amber-50 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+            <p className="text-sm font-bold text-amber-900">
+              Rascunho recuperado: você continua de onde parou ({new Date(rascunhoSalvoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}).
+            </p>
+            <button
+              type="button"
+              onClick={descartarRascunho}
+              className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest text-amber-900 border border-amber-300 hover:bg-amber-100"
+            >
+              Descartar rascunho
+            </button>
+          </div>
+        )}
 
         {/* Templates Dropdown */}
         {showTemplates && step === 1 && (
@@ -365,32 +483,48 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
 
                 {/* Tabs de treino */}
                 <div className="bg-surface px-3 py-3 md:p-4 border-b border-border flex items-center gap-2 overflow-x-auto custom-scrollbar flex-shrink-0">
-                  {novoPlano.treinos.map((treino, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setActiveTreinoIndex(idx)}
-                      className={`px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 md:gap-3 flex-shrink-0
-                        ${activeTreinoIndex === idx
-                          ? 'bg-brand text-brand-fg shadow-md shadow-brand/20'
-                          : 'bg-overlay text-text-muted'}`}
-                    >
-                      <span>{treino.nome || `Treino ${idx + 1}`}</span>
-                      {activeTreinoIndex === idx && novoPlano.treinos.length > 1 && (
-                        <span className="flex items-center gap-1.5">
-                          <ChevronLeft size={13}
-                            className={`transition-colors ${idx === 0 ? 'opacity-30 cursor-default' : 'hover:text-brand-fg/70 cursor-pointer'}`}
-                            title="Mover para a esquerda"
-                            onClick={(e) => { e.stopPropagation(); moveTreino(idx, -1); }} />
-                          <ChevronRight size={13}
-                            className={`transition-colors ${idx === novoPlano.treinos.length - 1 ? 'opacity-30 cursor-default' : 'hover:text-brand-fg/70 cursor-pointer'}`}
-                            title="Mover para a direita"
-                            onClick={(e) => { e.stopPropagation(); moveTreino(idx, 1); }} />
-                          <X size={12} className="hover:text-danger transition-colors"
-                            onClick={(e) => { e.stopPropagation(); handleRemoveTreino(idx); }} />
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                  {novoPlano.treinos.map((treino, idx) => {
+                    const ativo = activeTreinoIndex === idx;
+                    const podeMover = novoPlano.treinos.length > 1;
+                    return (
+                      <div
+                        key={idx}
+                        data-ordem-treino={idx}
+                        className={`flex items-center rounded-xl md:rounded-2xl flex-shrink-0 transition-all
+                          ${ativo ? 'bg-brand text-brand-fg shadow-md shadow-brand/20' : 'bg-overlay text-text-muted'}
+                          ${ordemTreinos.arrastando === idx ? 'ring-2 ring-brand/40 scale-105' : ''}`}
+                      >
+                        {podeMover && (
+                          <button
+                            type="button"
+                            {...ordemTreinos.puxador(idx, novoPlano.treinos.length)}
+                            className="pl-2 md:pl-3 py-2.5 md:py-3 cursor-grab active:cursor-grabbing touch-none opacity-60 hover:opacity-100"
+                            aria-label={`Reordenar ${treino.nome || `Treino ${idx + 1}`} (arraste ou use as setas)`}
+                            title="Arraste para reordenar"
+                          >
+                            <GripVertical size={14} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTreinoIndex(idx)}
+                          className={`${podeMover ? 'pl-1.5 md:pl-2' : 'pl-4 md:pl-6'} ${ativo && podeMover ? 'pr-1.5' : 'pr-4 md:pr-6'} py-2.5 md:py-3 text-xs font-black uppercase tracking-widest whitespace-nowrap`}
+                        >
+                          {treino.nome || `Treino ${idx + 1}`}
+                        </button>
+                        {ativo && podeMover && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTreino(idx)}
+                            className="pr-3 md:pr-4 py-2.5 md:py-3 hover:text-danger transition-colors"
+                            aria-label={`Remover ${treino.nome || `Treino ${idx + 1}`}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                   <button
                     onClick={handleAddTreino}
                     className="w-9 h-9 flex-shrink-0 bg-overlay text-text-muted hover:bg-brand/5 hover:text-brand rounded-xl flex items-center justify-center transition-all border border-dashed border-border"
@@ -507,7 +641,9 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
                         return (
                           <div
                             key={exIdx}
+                            data-ordem-exercicio={exIdx}
                             className={`border p-4 md:p-6 shadow-sm group animate-in slide-in-from-right-2 duration-200 transition-colors
+                              ${ordemExercicios.arrastando === exIdx ? 'ring-2 ring-brand/40 relative z-10' : ''}
                               ${groupClasses}
                               ${isGrouping ? (METHOD_BG[presc.metodo] || '') : ''}
                               ${isJustAdded ? 'bg-brand/8 border-brand/25' : 'bg-surface border-border'}`}
@@ -515,6 +651,15 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
                           >
                             {/* ── Layout mobile: vertical ── */}
                             <div className="flex items-start gap-3 md:hidden">
+                              <button
+                                type="button"
+                                {...ordemExercicios.puxador(exIdx, prescricoes.length)}
+                                className="-ml-1 -my-1 p-1 text-text-muted hover:text-brand cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+                                aria-label={`Reordenar ${presc.nome_exercicio} (arraste ou use as setas)`}
+                                title="Arraste para reordenar"
+                              >
+                                <GripVertical size={18} />
+                              </button>
                               <span className="mt-0.5 w-6 h-6 rounded-md bg-overlay flex items-center justify-center text-2xs font-black text-text-muted flex-shrink-0">
                                 {exIdx + 1}
                               </span>
@@ -527,24 +672,6 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
                                   value={presc.observacoes || ''}
                                   onChange={e => handleExercicioChange(activeTreinoIndex, exIdx, 'observacoes', e.target.value)}
                                 />
-                              </div>
-                              <div className="flex flex-col gap-0.5 flex-shrink-0">
-                                <button
-                                  onClick={() => moveExercicio(activeTreinoIndex, exIdx, -1)}
-                                  disabled={exIdx === 0}
-                                  className="p-1 text-text-muted active:text-brand disabled:opacity-30 transition-colors"
-                                  aria-label="Mover exercício para cima"
-                                >
-                                  <ChevronUp size={14} />
-                                </button>
-                                <button
-                                  onClick={() => moveExercicio(activeTreinoIndex, exIdx, 1)}
-                                  disabled={exIdx === prescricoes.length - 1}
-                                  className="p-1 text-text-muted active:text-brand disabled:opacity-30 transition-colors"
-                                  aria-label="Mover exercício para baixo"
-                                >
-                                  <ChevronDown size={14} />
-                                </button>
                               </div>
                               <button
                                 onClick={() => handleRemoveExercicio(activeTreinoIndex, exIdx)}
@@ -605,6 +732,15 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
 
                             {/* ── Layout desktop: horizontal (original) ── */}
                             <div className="hidden md:flex items-center gap-6">
+                              <button
+                                type="button"
+                                {...ordemExercicios.puxador(exIdx, prescricoes.length)}
+                                className="-mr-3 p-1 text-text-muted hover:text-brand cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+                                aria-label={`Reordenar ${presc.nome_exercicio} (arraste ou use as setas)`}
+                                title="Arraste para reordenar"
+                              >
+                                <GripVertical size={18} />
+                              </button>
                               <div className="w-8 h-8 rounded-lg bg-overlay flex items-center justify-center text-xs font-black text-text-muted flex-shrink-0">
                                 {exIdx + 1}
                               </div>
@@ -655,26 +791,6 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null }
                                     {METODOS_TREINO.map(m => <option key={m} value={m}>{m}</option>)}
                                   </select>
                                 </div>
-                              </div>
-                              <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => moveExercicio(activeTreinoIndex, exIdx, -1)}
-                                  disabled={exIdx === 0}
-                                  className="p-0.5 text-text-muted hover:text-brand disabled:opacity-30 transition-colors"
-                                  aria-label="Mover exercício para cima"
-                                  title="Mover para cima"
-                                >
-                                  <ChevronUp size={16} />
-                                </button>
-                                <button
-                                  onClick={() => moveExercicio(activeTreinoIndex, exIdx, 1)}
-                                  disabled={exIdx === prescricoes.length - 1}
-                                  className="p-0.5 text-text-muted hover:text-brand disabled:opacity-30 transition-colors"
-                                  aria-label="Mover exercício para baixo"
-                                  title="Mover para baixo"
-                                >
-                                  <ChevronDown size={16} />
-                                </button>
                               </div>
                               <button
                                 onClick={() => handleRemoveExercicio(activeTreinoIndex, exIdx)}
