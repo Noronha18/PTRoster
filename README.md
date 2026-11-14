@@ -72,7 +72,7 @@ O ecossistema tem duas interfaces:
 │   │   ├── schemas.py          # Schemas Pydantic
 │   │   ├── controllers.py      # Regras de negócio
 │   │   ├── security.py         # Hash de senha, JWT, dependências de papel
-│   │   ├── create_admin.py     # Cria o usuário admin inicial
+│   │   ├── create_admin.py     # Define o login único de admin (rodar à mão)
 │   │   ├── seed_exercicios.py  # Biblioteca base de exercícios
 │   │   └── routes/             # auth, admin, alunos, meu_perfil, planos, prescricoes, exercicios, pagamentos, sessoes
 │   ├── alembic/                # Migrações
@@ -107,7 +107,7 @@ cd backend
 cp .env.example .env              # defina SECRET_KEY (mín. 32 caracteres): openssl rand -hex 32
 uv sync                           # instala as dependências
 uv run alembic upgrade head       # aplica as migrações
-uv run python -m src.create_admin # cria o usuário admin inicial
+uv run python -m src.create_admin # define o admin e mostra uma senha gerada
 uv run uvicorn src.api:app --reload --port 8000
 ```
  
@@ -153,7 +153,7 @@ O deploy roda no **Render** como serviço Docker ([`render.yaml`](./render.yaml)
  
 1. Compila o frontend com Node 20.
 2. Monta a imagem Python 3.12 com as dependências via `uv`, roda tudo com usuário não-root e o FastAPI serve o build do frontend como arquivos estáticos.
-3. Ao iniciar, executa `alembic upgrade head`, depois `python -m src.create_admin` e sobe o `uvicorn`.
+3. Ao iniciar, executa `alembic upgrade head` e sobe o `uvicorn`. O admin não é criado na subida: rode `python -m src.create_admin` uma vez, à mão.
 Frontend e API ficam no mesmo domínio (`ptroster-app.onrender.com`). O Portal do Aluno fica em um domínio próprio, já liberado no CORS.
  
 ---

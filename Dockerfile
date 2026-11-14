@@ -45,5 +45,5 @@ COPY --from=frontend-build --chown=appuser:appuser /app/frontend/dist ./static
 
 EXPOSE 8080
 
-# Comando para rodar as migrações, criar o admin inicial e iniciar o servidor
-CMD ["sh", "-c", "alembic upgrade head && python -m src.create_admin && uvicorn src.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Roda as migrações e sobe o servidor. O admin é definido à mão: python -m src.create_admin
+CMD ["sh", "-c", "alembic upgrade head && uvicorn src.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
