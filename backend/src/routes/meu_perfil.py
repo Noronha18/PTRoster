@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src import controllers, schemas, database
+from src import controllers, schemas, database, video_personal
 from src.models import Usuario
 from src.security import get_current_user
 from src.consultoria import exigir_acesso_treino
@@ -27,7 +27,7 @@ async def meu_perfil(
         return schemas.AlunoPublic.model_validate(aluno).model_copy(
             update={"planos_treino": [], "sessoes": []}
         )
-    return aluno
+    return await video_personal.aluno_efetivo(db, aluno)
 
 
 @router.get(

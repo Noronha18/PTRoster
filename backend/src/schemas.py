@@ -1,3 +1,4 @@
+import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from datetime import date, datetime
 from typing import Optional, List, Literal
@@ -63,7 +64,22 @@ class ExercicioPublic(ExercicioBase):
     """Leitura permissiva: dados legados não podem quebrar a resposta da API."""
     id: int
     trainer_id: Optional[int] = None
+    # True quando o vídeo efetivo é do próprio personal (troca na base ou exercício dele).
+    video_proprio: bool = False
     model_config = ConfigDict(from_attributes=True)
+
+class VideoUpdate(BaseModel):
+    video_url: Optional[str] = None
+
+    @field_validator("video_url")
+    @classmethod
+    def _url_http(cls, url: Optional[str]) -> Optional[str]:
+        url = (url or "").strip()
+        if not url:
+            return None  # vazio = remover
+        if len(url) > 500 or not re.match(r"^https?://[^\s/]+\S*$", url, re.I):
+            raise ValueError("URL inválida: use http(s) com até 500 caracteres")
+        return url
 
 # --- SCHEMAS DE PRESCRIÇÃO ---
 class PrescricaoCreate(BaseModel):

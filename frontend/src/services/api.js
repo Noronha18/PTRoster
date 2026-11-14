@@ -74,6 +74,11 @@ export const treinoService = {
         method: 'POST',
         body: JSON.stringify(dados),
     }),
+    // video_url nulo/vazio = voltar ao original (troca do personal na base) ou remover.
+    definirVideoExercicio: (id, videoUrl) => apiFetch(`/exercicios/${id}/video`, {
+        method: 'PUT',
+        body: JSON.stringify({ video_url: videoUrl || null }),
+    }),
     
     // Gestão de Planos
     criarPlano: (alunoId, dados) => apiFetch(`/alunos/${alunoId}/planos`, {

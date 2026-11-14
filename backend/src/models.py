@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, Text, Float, ForeignKey, Index, JSON, func
+from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, Text, Float, ForeignKey, Index, JSON, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 from src.database import Base
 from datetime import date, datetime
@@ -157,6 +157,16 @@ class Exercicio(Base):
     video_url = Column(String, nullable=True)
 
     __table_args__ = (Index('uq_exercicios_escopo_nome', func.coalesce(trainer_id, 0), func.lower(nome), unique=True),)
+
+class ExercicioVideoPersonal(Base):
+    """Vídeo próprio do personal para um exercício da base (só os alunos dele veem)."""
+    __tablename__ = 'exercicio_videos_personal'
+    id = Column(Integer, primary_key=True)
+    trainer_id = Column(Integer, ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False, index=True)
+    exercicio_id = Column(Integer, ForeignKey('exercicios.id', ondelete='CASCADE'), nullable=False)
+    video_url = Column(String, nullable=False)
+
+    __table_args__ = (UniqueConstraint('trainer_id', 'exercicio_id', name='uq_video_personal_trainer_exercicio'),)
 
 class Prescricao(Base):
     """A ligação entre um Treino e um Exercício com as cargas/séries"""

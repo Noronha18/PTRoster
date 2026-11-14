@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from src import controllers, schemas, database
+from src import controllers, schemas, database, video_personal
 from src.schemas import StatusAluno
 from src.models import Usuario
 from src.security import get_current_trainer, resolve_tenant_filter
@@ -39,7 +39,8 @@ async def obter_aluno(
     current_user: Usuario = Depends(get_current_trainer),
     db: AsyncSession = Depends(database.get_db)
 ):
-    return await controllers.get_aluno(db=db, aluno_id=aluno_id, trainer_id=resolve_tenant_filter(current_user))
+    aluno = await controllers.get_aluno(db=db, aluno_id=aluno_id, trainer_id=resolve_tenant_filter(current_user))
+    return await video_personal.aluno_efetivo(db, aluno)
 
 
 @router.patch("/{aluno_id}", response_model=schemas.AlunoPublic)
@@ -49,11 +50,12 @@ async def atualizar_aluno(
     current_user: Usuario = Depends(get_current_trainer),
     db: AsyncSession = Depends(database.get_db)
 ):
-    return await controllers.atualizar_aluno(
+    atualizado = await controllers.atualizar_aluno(
         db=db, aluno_id=aluno_id, aluno_up=aluno,
         trainer_id=resolve_tenant_filter(current_user),
         permitir_troca_trainer=(current_user.role == "admin")
     )
+    return await video_personal.aluno_efetivo(db, atualizado)
 
 
 @router.patch("/{aluno_id}/status", response_model=schemas.AlunoPublic)
@@ -63,10 +65,11 @@ async def atualizar_status_aluno(
     current_user: Usuario = Depends(get_current_trainer),
     db: AsyncSession = Depends(database.get_db)
 ):
-    return await controllers.atualizar_status_aluno(
+    atualizado = await controllers.atualizar_status_aluno(
         db=db, aluno_id=aluno_id, novo_status=status,
         trainer_id=resolve_tenant_filter(current_user)
     )
+    return await video_personal.aluno_efetivo(db, atualizado)
 
 
 @router.delete("/{aluno_id}", status_code=204)

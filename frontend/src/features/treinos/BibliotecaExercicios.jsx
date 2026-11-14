@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Book, Search, Plus, X, Save } from 'lucide-react';
+import { Book, Search, Plus, X, Save, Video } from 'lucide-react';
 import { treinoService, getUserRole } from '../../services/api';
 import { useToast } from '../../components/ToastProvider';
 import { GRUPOS_MUSCULARES } from '../../constants/treino';
@@ -23,6 +23,29 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
         video_url: ''
     });
     const [salvando, setSalvando] = useState(false);
+
+    // Modal "Trocar vídeo": exercício em edição e URL digitada.
+    const [exVideo, setExVideo] = useState(null);
+    const [urlVideo, setUrlVideo] = useState('');
+
+    const abrirVideo = (e, ex) => {
+        e.stopPropagation(); // não adiciona o exercício ao treino
+        setExVideo(ex);
+        setUrlVideo(ex.video_url || '');
+    };
+
+    const salvarVideo = async (url) => {
+        try {
+            setSalvando(true);
+            await treinoService.definirVideoExercicio(exVideo.id, url);
+            await carregar();
+            setExVideo(null);
+        } catch (err) {
+            toast({ tipo: 'erro', texto: err.message || "Erro ao salvar vídeo" });
+        } finally {
+            setSalvando(false);
+        }
+    };
 
     const carregar = async () => {
         try {
@@ -158,14 +181,84 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
                                         )}
                                     </p>
                                 </div>
-                                <div className="w-8 h-8 rounded-xl bg-overlay border border-border flex items-center justify-center text-text-muted group-hover:text-brand group-hover:border-brand/20 group-hover:bg-surface transition-all shadow-sm">
-                                    <Plus size={16} />
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        title="Trocar vídeo"
+                                        aria-label={`Trocar vídeo de ${ex.nome}`}
+                                        onClick={(e) => abrirVideo(e, ex)}
+                                        className={`w-8 h-8 rounded-xl bg-overlay border flex items-center justify-center hover:text-brand transition-all ${ex.video_proprio ? 'text-brand border-brand/30' : 'text-text-muted border-border'}`}
+                                    >
+                                        <Video size={14} />
+                                    </button>
+                                    <div className="w-8 h-8 rounded-xl bg-overlay border border-border flex items-center justify-center text-text-muted group-hover:text-brand group-hover:border-brand/20 group-hover:bg-surface transition-all shadow-sm">
+                                        <Plus size={16} />
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ))
                 )}
             </div>
+
+            {/* Modal de Troca de Vídeo */}
+            {exVideo && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="bg-surface border border-border w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-black text-text-primary tracking-tight">Trocar vídeo</h2>
+                            <button onClick={() => setExVideo(null)} className="p-2 bg-overlay text-text-muted hover:text-text-secondary rounded-full transition-all">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-sm font-bold text-text-primary">{exVideo.nome}</p>
+                            <p className="text-xs text-text-muted break-all">Atual: {exVideo.video_url || 'sem vídeo'}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">URL do vídeo</label>
+                            <input
+                                type="url"
+                                className="w-full bg-overlay border border-border rounded-2xl px-5 py-4 text-text-primary font-bold focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-text-muted"
+                                value={urlVideo}
+                                onChange={(e) => setUrlVideo(e.target.value)}
+                                placeholder="https://youtube.com/..."
+                            />
+                            <p className="text-xs text-text-muted ml-1">
+                                {ehAdmin ? 'Altera o vídeo original, visto por todos.' : 'O vídeo novo aparece só para os seus alunos.'}
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                disabled={salvando}
+                                onClick={() => setExVideo(null)}
+                                className="flex-1 px-6 py-4 bg-overlay text-text-muted rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                type="button"
+                                disabled={salvando}
+                                onClick={() => salvarVideo(urlVideo.trim())}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-brand hover:bg-brand-hover disabled:opacity-50 text-brand-fg rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-brand/20"
+                            >
+                                {salvando ? 'Salvando...' : <><Save size={16} /> Salvar</>}
+                            </button>
+                        </div>
+                        {exVideo.video_proprio && exVideo.trainer_id == null && (
+                            <button
+                                type="button"
+                                disabled={salvando}
+                                onClick={() => salvarVideo(null)}
+                                className="w-full px-6 py-3 text-text-muted hover:text-brand text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                Voltar ao original
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Modal de Cadastro */}
             {showModal && (
