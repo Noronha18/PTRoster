@@ -188,6 +188,21 @@ export function getUserRole() {
     }
 }
 
+export const financeiroPersonalService = {
+    resumo: () => apiFetch('/admin/financeiro/personais'),
+    obterPlano: (personalId) => apiFetch(`/admin/financeiro/personais/${personalId}/plano`),
+    salvarPlano: (personalId, dados) => apiFetch(`/admin/financeiro/personais/${personalId}/plano`, {
+        method: 'PUT',
+        body: JSON.stringify(dados),
+    }),
+    listarPagamentos: (personalId, limite = 24) =>
+        apiFetch(`/admin/financeiro/personais/${personalId}/pagamentos?limite=${limite}`),
+    registrarPagamento: (personalId, dados) => apiFetch(`/admin/financeiro/personais/${personalId}/pagamentos`, {
+        method: 'POST',
+        body: JSON.stringify(dados),
+    }),
+};
+
 export const operacoesService = {
     listarPersonais: () => apiFetch('/admin/operacoes/personais'),
     alunosDoPersonal: (personalId) => apiFetch(`/admin/operacoes/personais/${personalId}/alunos`),

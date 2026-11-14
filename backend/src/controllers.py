@@ -1584,6 +1584,15 @@ async def criar_trainer(db: AsyncSession, trainer_in: schemas.TrainerCreate) -> 
     )
     db.add(novo_trainer)
     try:
+        await db.flush()
+        if trainer_in.valor_mensal is not None or trainer_in.dia_vencimento is not None:
+            db.add(models.PlanoPersonal(
+                trainer_id=novo_trainer.id,
+                valor_mensal=trainer_in.valor_mensal or 0,
+                dia_vencimento=trainer_in.dia_vencimento or 5,
+                ativo=True,
+                inicio=consultoria.hoje(),
+            ))
         await db.commit()
         await db.refresh(novo_trainer)
         return novo_trainer

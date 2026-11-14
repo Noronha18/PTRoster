@@ -1,11 +1,12 @@
 import { createElement, useCallback, useEffect, useState } from 'react';
 import {
-    ArrowLeft, Ban, CheckCircle2, ChevronDown, ChevronRight, CreditCard, Eye, EyeOff,
+    ArrowLeft, Ban, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff,
     KeyRound, Lock, Mail, RotateCcw, ShieldCheck, UserCheck, Users, XCircle,
 } from 'lucide-react';
 import { adminService, operacoesService } from '../../services/api';
 import { useToast } from '../../components/ToastProvider';
-import { MENSALIDADE, formatarData, formatarQuando } from './formato';
+import { FinanceiroPersonal } from './FinanceiroPersonal';
+import { formatarData, formatarQuando } from './formato';
 
 function BadgeStatus({ status }) {
     const ativo = status === 'ativo';
@@ -190,8 +191,6 @@ export function DetalhePersonal({ personal, onClose, onAtualizado }) {
         }
     };
 
-    const mensalidade = MENSALIDADE[personal.situacao_mensalidade] ?? MENSALIDADE.sem_plano;
-
     return (
         <div className="fixed inset-0 z-[60] bg-canvas overflow-y-auto custom-scrollbar" role="dialog" aria-modal="true" aria-label={`Detalhes de ${personal.username}`}>
             <div className="max-w-5xl mx-auto p-4 md:p-8 lg:p-12">
@@ -226,14 +225,6 @@ export function DetalhePersonal({ personal, onClose, onAtualizado }) {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            type="button"
-                            disabled
-                            title="Entra com o financeiro dos personais (etapa 4)"
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-overlay text-text-muted text-xs font-black uppercase tracking-widest opacity-50 cursor-not-allowed"
-                        >
-                            <CreditCard size={14} /> Registrar pagamento
-                        </button>
                         <button
                             onClick={() => setResetAberto((v) => !v)}
                             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-overlay hover:bg-border text-text-secondary text-xs font-black uppercase tracking-widest transition-all active:scale-95"
@@ -304,15 +295,11 @@ export function DetalhePersonal({ personal, onClose, onAtualizado }) {
                     ))}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 mb-8 text-xs text-text-muted">
-                    <span className={`px-2.5 py-1 rounded-lg border font-black uppercase tracking-widest text-[10px] ${mensalidade.classe}`}>
-                        Mensalidade: {mensalidade.rotulo}
-                    </span>
-                    <span>Na plataforma desde {formatarQuando(personal.data_criacao)}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted/70">
-                        Plano e pagamentos do personal entram na etapa 4
-                    </span>
-                </div>
+                <p className="mb-6 text-xs text-text-muted">
+                    Na plataforma desde {formatarQuando(personal.data_criacao)}
+                </p>
+
+                <FinanceiroPersonal personal={personal} onAtualizado={onAtualizado} />
 
                 <section className="bg-surface border border-border rounded-2xl overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-4 border-b border-border">

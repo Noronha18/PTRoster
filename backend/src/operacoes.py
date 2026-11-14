@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src import consultoria, exceptions, models, schemas
+from src import consultoria, exceptions, financeiro_personal, models, schemas
 
 
 def _dict(rows) -> dict:
@@ -62,6 +62,7 @@ async def listar_personais(db: AsyncSession) -> list[schemas.PersonalOperacoes]:
         .where(models.Aluno.trainer_id.in_(ids), models.SessaoTreino.realizada.is_(True))
         .group_by(models.Aluno.trainer_id)
     )).all())
+    financeiro = await financeiro_personal.situacoes_por_trainer(db)
 
     return [
         schemas.PersonalOperacoes(
@@ -76,6 +77,10 @@ async def listar_personais(db: AsyncSession) -> list[schemas.PersonalOperacoes]:
             alunos_total=totais.get(u.id, 0),
             treinos_7d=treinos_7d.get(u.id, 0),
             ultimo_treino=ultimo_treino.get(u.id),
+            situacao_mensalidade=financeiro[u.id].situacao if u.id in financeiro else "sem_plano",
+            dias_atraso=financeiro[u.id].dias_atraso if u.id in financeiro else 0,
+            valor_mensal=financeiro[u.id].valor_mensal if u.id in financeiro else None,
+            dia_vencimento=financeiro[u.id].dia_vencimento if u.id in financeiro else None,
         )
         for u in usuarios
     ]

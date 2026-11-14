@@ -8,6 +8,7 @@ import { ListaAlunosFeature } from './features/alunos/ListaAlunos';
 import { DetalheAluno } from './features/alunos/DetalheAluno';
 import { ModuloTreinos } from './features/treinos/ModuloTreinos';
 import DashboardFinanceiro from './features/financeiro/DashboardFinanceiro';
+import DashboardFinanceiroPersonais from './features/financeiro/DashboardFinanceiroPersonais';
 import { PainelAdmin } from './features/admin/PainelAdmin';
 
 function App() {
@@ -39,7 +40,7 @@ function App() {
       case 'treinos':
         return <ModuloTreinos />;
       case 'financeiro':
-        return <DashboardFinanceiro />;
+        return userRole === 'admin' ? <DashboardFinanceiroPersonais /> : <DashboardFinanceiro />;
       case 'admin':
         return <PainelAdmin />;
       default:

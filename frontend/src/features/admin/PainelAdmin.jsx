@@ -14,11 +14,11 @@ const TOM_ALERTA = {
     muted: 'bg-overlay text-text-muted border-border',
 };
 
-function BadgeMensalidade({ situacao }) {
+function BadgeMensalidade({ situacao, diasAtraso = 0 }) {
     const dados = MENSALIDADE[situacao] ?? MENSALIDADE.sem_plano;
     return (
         <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${dados.classe}`}>
-            {dados.rotulo}
+            {dados.rotulo}{situacao === 'atrasada' && diasAtraso > 0 ? ` · ${diasAtraso}d` : ''}
         </span>
     );
 }
@@ -96,7 +96,7 @@ function TabelaPersonais({ personais, onSelect }) {
                             <td className="px-5 py-3 text-sm font-bold text-text-secondary">{personal.alunos_ativos}/{personal.alunos_total}</td>
                             <td className="px-5 py-3 text-xs text-text-secondary whitespace-nowrap">{formatarQuando(personal.ultimo_acesso)}</td>
                             <td className="px-5 py-3 text-sm font-black text-text-primary">{personal.treinos_7d}</td>
-                            <td className="px-5 py-3"><BadgeMensalidade situacao={personal.situacao_mensalidade} /></td>
+                            <td className="px-5 py-3"><BadgeMensalidade situacao={personal.situacao_mensalidade} diasAtraso={personal.dias_atraso} /></td>
                             <td className="px-5 py-3"><BadgeAlertas personal={personal} /></td>
                             <td className="px-3 py-3 text-right">
                                 <ChevronRight size={16} className="text-text-muted inline" />
@@ -139,7 +139,7 @@ function CartoesPersonais({ personais, onSelect }) {
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 mt-3">
-                        <BadgeMensalidade situacao={personal.situacao_mensalidade} />
+                        <BadgeMensalidade situacao={personal.situacao_mensalidade} diasAtraso={personal.dias_atraso} />
                         <BadgeAlertas personal={personal} />
                     </div>
                 </button>
@@ -211,18 +211,22 @@ export function PainelAdmin() {
     const fora = useMemo(() => personais.filter((p) => !p.is_active), [personais]);
     const semAtividadeAgora = useMemo(() => ativos.filter((p) => semAtividade(p)), [ativos]);
     const semAlunos = useMemo(() => ativos.filter((p) => p.alunos_ativos === 0), [ativos]);
+    const atrasados = useMemo(() => ativos.filter((p) => p.situacao_mensalidade === 'atrasada'), [ativos]);
+    const vencemEmBreve = useMemo(() => ativos.filter((p) => p.situacao_mensalidade === 'vence_em_breve'), [ativos]);
 
     const filtros = [
         { id: 'ativos', rotulo: 'Personais ativos', quantidade: ativos.length, icone: UserCheck },
         { id: 'sem_atividade', rotulo: 'Sem atividade há 7 dias', quantidade: semAtividadeAgora.length, icone: Activity },
         { id: 'sem_alunos', rotulo: 'Sem alunos', quantidade: semAlunos.length, icone: Users },
-        { id: 'mensalidade_atrasada', rotulo: 'Mensalidade atrasada', quantidade: 0, icone: AlertTriangle, desabilitado: true },
-        { id: 'vence_breve', rotulo: 'Vence em até 3 dias', quantidade: 0, icone: Clock, desabilitado: true },
+        { id: 'mensalidade_atrasada', rotulo: 'Mensalidade atrasada', quantidade: atrasados.length, icone: AlertTriangle },
+        { id: 'vence_breve', rotulo: 'Vence em até 3 dias', quantidade: vencemEmBreve.length, icone: Clock },
     ];
 
     const filtrados = (() => {
         if (filtro === 'sem_atividade') return semAtividadeAgora;
         if (filtro === 'sem_alunos') return semAlunos;
+        if (filtro === 'mensalidade_atrasada') return atrasados;
+        if (filtro === 'vence_breve') return vencemEmBreve;
         return ativos;
     })();
 

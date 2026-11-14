@@ -373,6 +373,9 @@ class TrainerCreate(BaseModel):
     username: str
     email: str
     password: str
+    # Opcionais: já criam o plano de mensalidade do personal.
+    valor_mensal: Optional[float] = Field(default=None, ge=0)
+    dia_vencimento: Optional[int] = Field(default=None, ge=1, le=31)
 
 class UsuarioAdminPublic(BaseModel):
     id: int
@@ -400,8 +403,10 @@ class PersonalOperacoes(BaseModel):
     alunos_total: int = 0
     treinos_7d: int = 0
     ultimo_treino: Optional[datetime] = None
-    # Etapa 4 preenche com em_dia/atrasada/vence_em_breve; até lá, todos sem plano.
     situacao_mensalidade: str = "sem_plano"
+    dias_atraso: int = 0
+    valor_mensal: Optional[float] = None
+    dia_vencimento: Optional[int] = None
 
 class AlunoOperacoes(BaseModel):
     id: int
@@ -423,6 +428,59 @@ class SessaoOperacoes(BaseModel):
     registrado_por: Optional[str] = None
     observacoes_performance: Optional[str] = None
     motivo_ausencia: Optional[str] = None
+
+class PlanoPersonalPublic(BaseModel):
+    trainer_id: int
+    valor_mensal: float
+    dia_vencimento: int
+    ativo: bool
+    inicio: date
+    observacao: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class PlanoPersonalUpsert(BaseModel):
+    valor_mensal: float = Field(ge=0)
+    dia_vencimento: int = Field(ge=1, le=31)
+    ativo: bool = True
+    inicio: Optional[date] = None
+    observacao: Optional[str] = None
+
+class PagamentoPersonalCreate(BaseModel):
+    referencia_mes: str = Field(pattern=r"^(0[1-9]|1[0-2])/\d{4}$")
+    valor: float = Field(ge=0)
+    data_pagamento: Optional[date] = None
+    forma_pagamento: Optional[str] = None
+    observacao: Optional[str] = None
+
+class PagamentoPersonalPublic(PagamentoPersonalCreate):
+    id: int
+    trainer_id: int
+    data_pagamento: date
+    model_config = ConfigDict(from_attributes=True)
+
+class SituacaoFinanceiraPersonal(BaseModel):
+    trainer_id: int
+    username: str
+    email: str
+    valor_mensal: Optional[float] = None
+    dia_vencimento: Optional[int] = None
+    ativo: bool
+    situacao: str  # em_dia, vence_em_breve, atrasada, em_aberto, sem_plano
+    dias_atraso: int = 0
+    pago_em: Optional[date] = None
+
+class ResumoFinanceiroPersonais(BaseModel):
+    referencia_mes: str
+    receita_prevista: float
+    recebido_mes: float
+    valor_em_atraso: float
+    total_personais: int
+    quantidade_em_dia: int
+    quantidade_vence_em_breve: int
+    quantidade_em_atraso: int
+    quantidade_em_aberto: int
+    quantidade_sem_plano: int
+    personais: List[SituacaoFinanceiraPersonal]
 
 class VerificarSenhaRequest(BaseModel):
     senha: str

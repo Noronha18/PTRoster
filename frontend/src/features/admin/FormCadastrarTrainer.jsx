@@ -3,7 +3,13 @@ import { UserPlus, Eye, EyeOff, XCircle } from 'lucide-react';
 import { adminService } from '../../services/api';
 
 export function FormCadastrarTrainer({ onSuccess, onCancel }) {
-    const [form, setForm] = useState({ username: '', email: '', password: '' });
+    const [form, setForm] = useState({
+        username: '',
+        email: '',
+        password: '',
+        valor_mensal: '',
+        dia_vencimento: '',
+    });
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState('');
     const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -15,8 +21,18 @@ export function FormCadastrarTrainer({ onSuccess, onCancel }) {
         setErro('');
         setLoading(true);
         try {
-            await adminService.criarTrainer(form);
-            setForm({ username: '', email: '', password: '' });
+            await adminService.criarTrainer({
+                ...form,
+                valor_mensal: form.valor_mensal === '' ? null : Number(form.valor_mensal),
+                dia_vencimento: form.dia_vencimento === '' ? null : Number(form.dia_vencimento),
+            });
+            setForm({
+                username: '',
+                email: '',
+                password: '',
+                valor_mensal: '',
+                dia_vencimento: '',
+            });
             onSuccess();
         } catch (err) {
             setErro(err.message || 'Erro ao cadastrar trainer.');
@@ -94,6 +110,38 @@ export function FormCadastrarTrainer({ onSuccess, onCancel }) {
                     </button>
                 </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                    <label htmlFor="novo-personal-valor" className="text-[10px] font-black uppercase tracking-widest text-text-muted">Mensalidade (opcional)</label>
+                    <input
+                        id="novo-personal-valor"
+                        name="valor_mensal"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.valor_mensal}
+                        onChange={handleChange}
+                        placeholder="0,00"
+                        className="w-full bg-overlay border border-border rounded-xl px-4 py-3 text-sm text-text-primary font-bold focus:outline-none focus:ring-4 focus:ring-brand/10 transition-all placeholder:text-text-muted"
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <label htmlFor="novo-personal-vencimento" className="text-[10px] font-black uppercase tracking-widest text-text-muted">Vencimento</label>
+                    <input
+                        id="novo-personal-vencimento"
+                        name="dia_vencimento"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={form.dia_vencimento}
+                        onChange={handleChange}
+                        placeholder="dia 5"
+                        className="w-full bg-overlay border border-border rounded-xl px-4 py-3 text-sm text-text-primary font-bold focus:outline-none focus:ring-4 focus:ring-brand/10 transition-all placeholder:text-text-muted"
+                    />
+                </div>
+            </div>
+            <p className="text-[10px] text-text-muted">Pode definir ou alterar o plano depois em Operações.</p>
 
             <div className="flex gap-3 pt-2">
                 {onCancel && (

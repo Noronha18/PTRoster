@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from src import controllers, schemas, database, operacoes
+from src import controllers, schemas, database, financeiro_personal, operacoes
 from src.security import get_current_admin
 
 router = APIRouter(
@@ -45,6 +45,50 @@ async def definir_ativo_usuario(
     current_user=Depends(get_current_admin),
 ):
     return await operacoes.definir_ativo(db, usuario_id, payload.ativo, current_user.id)
+
+
+@router.get("/financeiro/personais", response_model=schemas.ResumoFinanceiroPersonais)
+async def resumo_financeiro_personais(db: AsyncSession = Depends(database.get_db)):
+    return await financeiro_personal.resumo(db)
+
+
+@router.get("/financeiro/personais/{personal_id}/plano", response_model=schemas.PlanoPersonalPublic | None)
+async def obter_plano_personal(
+    personal_id: int,
+    db: AsyncSession = Depends(database.get_db),
+):
+    return await financeiro_personal.obter_plano(db, personal_id)
+
+
+@router.put("/financeiro/personais/{personal_id}/plano", response_model=schemas.PlanoPersonalPublic)
+async def salvar_plano_personal(
+    personal_id: int,
+    dados: schemas.PlanoPersonalUpsert,
+    db: AsyncSession = Depends(database.get_db),
+):
+    return await financeiro_personal.salvar_plano(db, personal_id, dados)
+
+
+@router.get("/financeiro/personais/{personal_id}/pagamentos", response_model=list[schemas.PagamentoPersonalPublic])
+async def listar_pagamentos_personal(
+    personal_id: int,
+    limite: int = Query(24, ge=1, le=100),
+    db: AsyncSession = Depends(database.get_db),
+):
+    return await financeiro_personal.listar_pagamentos(db, personal_id, limite)
+
+
+@router.post(
+    "/financeiro/personais/{personal_id}/pagamentos",
+    response_model=schemas.PagamentoPersonalPublic,
+    status_code=201,
+)
+async def registrar_pagamento_personal(
+    personal_id: int,
+    dados: schemas.PagamentoPersonalCreate,
+    db: AsyncSession = Depends(database.get_db),
+):
+    return await financeiro_personal.registrar_pagamento(db, personal_id, dados)
 
 
 @router.post("/trainers", response_model=schemas.UsuarioAdminPublic, status_code=201)

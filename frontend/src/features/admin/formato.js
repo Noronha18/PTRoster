@@ -3,6 +3,7 @@ const SETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
 export const MENSALIDADE = {
     sem_plano: { rotulo: 'Sem plano', classe: 'bg-overlay text-text-muted border-border' },
     em_dia: { rotulo: 'Em dia', classe: 'bg-success/10 text-success border-success/20' },
+    em_aberto: { rotulo: 'Em aberto', classe: 'bg-overlay text-text-secondary border-border' },
     vence_em_breve: { rotulo: 'Vence em breve', classe: 'bg-warning/10 text-warning border-warning/20' },
     atrasada: { rotulo: 'Atrasada', classe: 'bg-danger/10 text-danger border-danger/20' },
 };
@@ -18,6 +19,12 @@ export function formatarQuando(valor) {
         hour: '2-digit',
         minute: '2-digit',
     });
+}
+
+export function formatarDia(valor) {
+    if (!valor) return '—';
+    const [ano, mes, dia] = String(valor).slice(0, 10).split('-');
+    return ano && mes && dia ? `${dia}/${mes}/${ano}` : '—';
 }
 
 export function formatarData(valor) {
@@ -55,6 +62,8 @@ export function alertasPersonal(personal) {
     }
     if (personal.situacao_mensalidade === 'atrasada') {
         alertas.push({ id: 'mensalidade-atrasada', texto: 'Mensalidade atrasada', tom: 'danger' });
+    } else if (personal.situacao_mensalidade === 'vence_em_breve') {
+        alertas.push({ id: 'mensalidade-vence', texto: 'Mensalidade vence', tom: 'warn' });
     }
     return alertas;
 }

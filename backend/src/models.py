@@ -75,6 +75,30 @@ class Pagamento(Base):
     aluno = relationship("Aluno", back_populates="pagamentos")
 
 
+class PlanoPersonal(Base):
+    """Mensalidade que o personal paga à plataforma."""
+    __tablename__ = 'planos_personal'
+
+    trainer_id = Column(Integer, ForeignKey('usuarios.id', ondelete='CASCADE'), primary_key=True)
+    valor_mensal = Column(Float, nullable=False, default=0.0)
+    dia_vencimento = Column(Integer, nullable=False, default=5)
+    ativo = Column(Boolean, nullable=False, default=True)
+    inicio = Column(Date, nullable=False, default=date.today)
+    observacao = Column(Text, nullable=True)
+
+class PagamentoPersonal(Base):
+    """Pagamento da mensalidade de um personal, por mês de referência."""
+    __tablename__ = 'pagamentos_personal'
+    __table_args__ = (Index('ix_pagamentos_personal_trainer_referencia', 'trainer_id', 'referencia_mes'),)
+
+    id = Column(Integer, primary_key=True)
+    trainer_id = Column(Integer, ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    referencia_mes = Column(String(7), nullable=False)  # MM/AAAA
+    valor = Column(Float, nullable=False)
+    data_pagamento = Column(Date, nullable=False, default=date.today)
+    forma_pagamento = Column(String(50), nullable=True)
+    observacao = Column(Text, nullable=True)
+
 class SessaoTreino(Base):
     __tablename__ = 'sessoes_treino'
     __table_args__ = (
