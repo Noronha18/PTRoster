@@ -397,7 +397,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                   <p className="text-xs text-text-muted font-medium">{t.treinos?.length} treinos · {t.duracao_semanas} semanas</p>
                 </button>
               ))}
-              {templates.length === 0 && <p className="text-xs text-text-muted p-4 text-center italic">Nenhum modelo global criado.</p>}
+              {templates.length === 0 && <p className="text-xs text-text-muted p-4 text-center italic">Nenhum modelo criado.</p>}
             </div>
           </div>
         )}

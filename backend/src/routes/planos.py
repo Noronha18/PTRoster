@@ -26,16 +26,23 @@ async def criar_plano_para_aluno(
 
 
 @router.get("/planos/templates", response_model=list[schemas.PlanoTreinoPublic])
-async def listar_templates(db: AsyncSession = Depends(get_db)):
-    return await controllers.listar_templates_globais(db=db)
+async def listar_templates(
+    current_user: Usuario = Depends(get_current_trainer),
+    db: AsyncSession = Depends(get_db)
+):
+    return await controllers.listar_templates_globais(db=db, trainer_id=resolve_tenant_filter(current_user))
 
 
 @router.post("/planos/templates", response_model=schemas.PlanoTreinoPublic, status_code=status.HTTP_201_CREATED)
 async def criar_template_global(
     plano_in: schemas.PlanoTreinoCreate,
+    current_user: Usuario = Depends(get_current_trainer),
     db: AsyncSession = Depends(get_db)
 ):
-    return await controllers.criar_plano_treino(db=db, aluno_id=None, plano_in=plano_in)
+    return await controllers.criar_plano_treino(
+        db=db, aluno_id=None, plano_in=plano_in,
+        trainer_id=resolve_tenant_filter(current_user)
+    )
 
 
 @router.delete("/planos/{plano_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -320,9 +320,10 @@ async def listar_planos_detalhados_aluno(db: AsyncSession, aluno_id: int):
     result = await db.execute(query)
     return result.scalars().all()
 
-async def listar_templates_globais(db: AsyncSession):
+async def listar_templates_globais(db: AsyncSession, trainer_id: int | None = None):
     """
-    Retorna todos os planos que não possuem aluno_id vinculado (templates).
+    Retorna os modelos (planos sem aluno_id): admin vê todos; personal vê os
+    próprios e os da plataforma (trainer_id nulo).
     """
     query = (
         select(models.PlanoTreino)
@@ -334,6 +335,11 @@ async def listar_templates_globais(db: AsyncSession):
         )
         .order_by(models.PlanoTreino.titulo)
     )
+    if trainer_id is not None:
+        query = query.where(or_(
+            models.PlanoTreino.trainer_id == trainer_id,
+            models.PlanoTreino.trainer_id.is_(None),
+        ))
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -1250,8 +1256,11 @@ async def calcular_estatisticas_financeiras(db: AsyncSession, trainer_id: int | 
 
     return resultado
 
-async def _assert_owns_plano(db: AsyncSession, plano_id: int, trainer_id: int | None) -> models.PlanoTreino:
-    """Busca plano e verifica ownership. Templates (aluno_id=None) são acessíveis a todos."""
+async def _assert_owns_plano(
+    db: AsyncSession, plano_id: int, trainer_id: int | None, leitura: bool = False
+) -> models.PlanoTreino:
+    """Busca plano e verifica ownership. Modelo (aluno_id=None) é do personal em
+    trainer_id; o da plataforma (trainer_id nulo) só é liberado com leitura=True (clonar)."""
     plano = await db.scalar(select(models.PlanoTreino).where(models.PlanoTreino.id == plano_id))
     if not plano:
         raise exceptions.ResourceNotFoundError(f"Plano de treino {plano_id} não encontrado")
@@ -1261,12 +1270,38 @@ async def _assert_owns_plano(db: AsyncSession, plano_id: int, trainer_id: int | 
         )
         if aluno_trainer != trainer_id:
             raise exceptions.ResourceNotFoundError(f"Plano de treino {plano_id} não encontrado")
+    if trainer_id is not None and plano.aluno_id is None:
+        if plano.trainer_id != trainer_id and not (leitura and plano.trainer_id is None):
+            raise exceptions.ResourceNotFoundError(f"Plano de treino {plano_id} não encontrado")
     return plano
+
+
+async def _assert_exercicios_do_escopo(db: AsyncSession, ids: set[int], trainer_id: int | None) -> None:
+    """Personal só prescreve exercício da base ou próprio. Admin (None) não é filtrado."""
+    if trainer_id is None or not ids:
+        return
+    visiveis = set((await db.scalars(
+        select(models.Exercicio.id).where(
+            models.Exercicio.id.in_(ids),
+            or_(models.Exercicio.trainer_id.is_(None), models.Exercicio.trainer_id == trainer_id),
+        )
+    )).all())
+    if visiveis != ids:
+        raise exceptions.BusinessRuleError("Exercício inexistente ou de outro personal.")
 
 
 async def criar_plano_treino(db: AsyncSession, aluno_id: int | None, plano_in: schemas.PlanoTreinoCreate, trainer_id: int | None = None):
     if aluno_id is not None and trainer_id is not None:
         await get_aluno(db, aluno_id, trainer_id)  # valida ownership
+    ids = {p.exercicio_id for t in plano_in.treinos for p in t.prescricoes}
+    if aluno_id is None and trainer_id is None and ids:
+        # Modelo da plataforma é usado por todos: só exercício da base.
+        da_base = set((await db.scalars(
+            select(models.Exercicio.id).where(models.Exercicio.id.in_(ids), models.Exercicio.trainer_id.is_(None))
+        )).all())
+        if da_base != ids:
+            raise exceptions.BusinessRuleError("Exercício inexistente ou de outro personal.")
+    await _assert_exercicios_do_escopo(db, ids, trainer_id)
 
     # 1. Se for para um aluno específico, desativa os planos anteriores
     if aluno_id is not None:
@@ -1280,6 +1315,7 @@ async def criar_plano_treino(db: AsyncSession, aluno_id: int | None, plano_in: s
     # 2. Cria o Plano
     novo_plano = models.PlanoTreino(
         aluno_id=aluno_id,
+        trainer_id=trainer_id if aluno_id is None else None,
         titulo=plano_in.titulo,
         objetivo_estrategico=plano_in.objetivo_estrategico,
         detalhes=plano_in.detalhes,
@@ -1339,7 +1375,9 @@ async def clonar_plano_treino(db: AsyncSession, plano_origem_id: int, novo_aluno
     Clona um plano existente para um novo aluno (ou como template se novo_aluno_id for None).
     """
     # 1. Valida ownership e carrega o plano original
-    await _assert_owns_plano(db, plano_origem_id, trainer_id)
+    await _assert_owns_plano(db, plano_origem_id, trainer_id, leitura=True)
+    if novo_aluno_id is not None and trainer_id is not None:
+        await get_aluno(db, novo_aluno_id, trainer_id)  # destino precisa ser do personal
     stmt = (
         select(models.PlanoTreino)
         .options(
@@ -1366,6 +1404,7 @@ async def clonar_plano_treino(db: AsyncSession, plano_origem_id: int, novo_aluno
     # Templates mantêm o título original; cópias para aluno ganham sufixo
     novo_plano = models.PlanoTreino(
         aluno_id=novo_aluno_id,
+        trainer_id=trainer_id if novo_aluno_id is None else None,
         titulo=f"{plano_origem.titulo} (Cópia)" if novo_aluno_id else plano_origem.titulo,
         objetivo_estrategico=plano_origem.objetivo_estrategico,
         detalhes=plano_origem.detalhes,
@@ -1421,6 +1460,15 @@ async def atualizar_plano_treino(db: AsyncSession, plano_id: int, payload: schem
     Implementa lógica de sincronização: o que não vier no payload é removido.
     """
     await _assert_owns_plano(db, plano_id, trainer_id)
+    if payload.treinos is not None:
+        ids = {p.exercicio_id for t in payload.treinos for p in t.prescricoes}
+        # O painel reenvia tudo: só valida o que ainda não está no plano.
+        ja_no_plano = set((await db.scalars(
+            select(models.Prescricao.exercicio_id)
+            .join(models.Treino, models.Prescricao.treino_id == models.Treino.id)
+            .where(models.Treino.plano_id == plano_id)
+        )).all())
+        await _assert_exercicios_do_escopo(db, ids - ja_no_plano, trainer_id)
 
     stmt = (
         select(models.PlanoTreino)
@@ -1573,20 +1621,33 @@ async def resetar_senha_usuario(db: AsyncSession, usuario_id: int, nova_senha: s
         raise e
 
 
-async def listar_exercicios(db: AsyncSession):
-    result = await db.execute(select(models.Exercicio).order_by(models.Exercicio.grupo_muscular))
+async def listar_exercicios(db: AsyncSession, trainer_id: int | None = None):
+    """Admin vê tudo; personal vê a base (trainer_id nulo) e os próprios."""
+    query = select(models.Exercicio).order_by(models.Exercicio.grupo_muscular)
+    if trainer_id is not None:
+        query = query.where(or_(
+            models.Exercicio.trainer_id.is_(None), models.Exercicio.trainer_id == trainer_id
+        ))
+    result = await db.execute(query)
     return result.scalars().all()
 
-async def criar_exercicio(db: AsyncSession, exercicio_in: schemas.ExercicioCreate):
+async def criar_exercicio(db: AsyncSession, exercicio_in: schemas.ExercicioCreate, trainer_id: int | None = None):
     # Unicidade ignora caixa: "Supino reto" e "Supino Reto" são o mesmo exercício.
+    # Escopo: personal compara com a base e com os próprios; admin cria na base.
     stmt = select(models.Exercicio).where(
         func.lower(models.Exercicio.nome) == exercicio_in.nome.lower()
     )
+    if trainer_id is None:
+        stmt = stmt.where(models.Exercicio.trainer_id.is_(None))
+    else:
+        stmt = stmt.where(or_(
+            models.Exercicio.trainer_id.is_(None), models.Exercicio.trainer_id == trainer_id
+        ))
     result = await db.execute(stmt)
-    if result.scalar_one_or_none():
+    if result.scalars().first():
         raise exceptions.BusinessRuleError(f"Exercício '{exercicio_in.nome}' já cadastrado.")
     
-    novo_exercicio = models.Exercicio(**exercicio_in.model_dump())
+    novo_exercicio = models.Exercicio(**exercicio_in.model_dump(), trainer_id=trainer_id)
     db.add(novo_exercicio)
     try:
         await db.commit()

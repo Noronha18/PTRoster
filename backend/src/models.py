@@ -109,7 +109,9 @@ class PlanoTreino(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     aluno_id = Column(Integer, ForeignKey('alunos.id', ondelete='CASCADE'), nullable=True)
-    
+    # Só em modelo (aluno_id nulo): dono do modelo; nulo = modelo da plataforma.
+    trainer_id = Column(Integer, ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True, index=True)
+
     titulo = Column(String, index=True)
     objetivo_estrategico = Column(Text, nullable=True) 
     detalhes = Column(Text, nullable=True)
@@ -147,12 +149,14 @@ class Exercicio(Base):
     __tablename__ = 'exercicios'
 
     id = Column(Integer, primary_key=True)
-    nome = Column(String, unique=True, index=True)
+    nome = Column(String, index=True)
+    # Nulo = base da plataforma; preenchido = exercício do personal.
+    trainer_id = Column(Integer, ForeignKey('usuarios.id', ondelete='SET NULL'), nullable=True, index=True)
     grupo_muscular = Column(String, index=True)  # principal: o único que conta no volume semanal
     grupos_secundarios = Column(JSON, nullable=False, default=list, server_default='[]')
     video_url = Column(String, nullable=True)
 
-    __table_args__ = (Index('uq_exercicios_nome_lower', func.lower(nome), unique=True),)
+    __table_args__ = (Index('uq_exercicios_escopo_nome', func.coalesce(trainer_id, 0), func.lower(nome), unique=True),)
 
 class Prescricao(Base):
     """A ligação entre um Treino e um Exercício com as cargas/séries"""

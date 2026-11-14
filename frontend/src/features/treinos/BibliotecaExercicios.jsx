@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Book, Search, Plus, X, Save } from 'lucide-react';
-import { treinoService } from '../../services/api';
+import { treinoService, getUserRole } from '../../services/api';
 import { useToast } from '../../components/ToastProvider';
 import { GRUPOS_MUSCULARES } from '../../constants/treino';
 
@@ -9,6 +9,8 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
     const [exercicios, setExercicios] = useState([]);
     const [grupoAtivo, setGrupoAtivo] = useState('Todos');
     const [busca, setBusca] = useState('');
+    // A lista do personal traz só a base (trainer_id nulo) e os dele: trainer_id preenchido = "Meu".
+    const ehAdmin = getUserRole() === 'admin';
     const [loading, setLoading] = useState(true);
     const [erro, setErro] = useState(null);
     
@@ -144,7 +146,11 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
                         >
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <p className="text-lg font-bold text-text-primary group-hover:text-brand transition-colors leading-tight">{ex.nome}</p>
+                                    <p className="text-lg font-bold text-text-primary group-hover:text-brand transition-colors leading-tight">{ex.nome}
+                                        {!ehAdmin && ex.trainer_id != null && (
+                                            <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-widest text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded">Meu</span>
+                                        )}
+                                    </p>
                                     <p className="text-xs text-text-muted uppercase font-black tracking-widest mt-1 group-hover:text-text-secondary">
                                         {ex.grupo_muscular}
                                         {ex.grupos_secundarios?.length > 0 && (

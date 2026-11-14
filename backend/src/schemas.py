@@ -62,6 +62,7 @@ class ExercicioCreate(ExercicioBase):
 class ExercicioPublic(ExercicioBase):
     """Leitura permissiva: dados legados não podem quebrar a resposta da API."""
     id: int
+    trainer_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 # --- SCHEMAS DE PRESCRIÇÃO ---
@@ -152,6 +153,7 @@ class PlanoTreinoPublic(BaseModel):
     id: int
     titulo: str
     aluno_id: Optional[int] = None
+    trainer_id: Optional[int] = None
     objetivo_estrategico: Optional[str] = None
     detalhes: Optional[str] = None
     duracao_semanas: Optional[int] = 4

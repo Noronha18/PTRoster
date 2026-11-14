@@ -93,7 +93,8 @@ async def _run_seed(db: AsyncSession):
     for ex_data in exercicios_base:
         # O índice único é lower(nome); a busca também precisa ignorar caixa.
         stmt = select(Exercicio).where(
-            func.lower(Exercicio.nome) == ex_data["nome"].strip().lower()
+            func.lower(Exercicio.nome) == ex_data["nome"].strip().lower(),
+            Exercicio.trainer_id.is_(None),  # o seed só mexe na base da plataforma
         )
         result = await db.execute(stmt)
         existente = result.scalar_one_or_none()

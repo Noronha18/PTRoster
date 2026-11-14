@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Dumbbell, Plus, Book, CheckCircle2, AlertCircle, Trash2, Pencil } from 'lucide-react';
-import { alunoService, treinoService } from '../../services/api';
+import { Dumbbell, Plus, Book, CheckCircle2, AlertCircle, Trash2, Pencil, Copy } from 'lucide-react';
+import { alunoService, treinoService, getUserRole } from '../../services/api';
 import { ModalPlanoTreino } from '../alunos/ModalPlanoTreino';
 
 export const ModuloTreinos = () => {
@@ -10,6 +10,7 @@ export const ModuloTreinos = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [templateEdicao, setTemplateEdicao] = useState(null);
     const [templates, setTemplates] = useState([]);
+    const ehAdmin = getUserRole() === 'admin';
 
     const carregarDados = async () => {
         try {
@@ -39,7 +40,7 @@ export const ModuloTreinos = () => {
                 setMensagem({ tipo: 'sucesso', texto: 'Plano vinculado ao aluno com sucesso!' });
             } else {
                 await treinoService.criarTemplate(payload);
-                setMensagem({ tipo: 'sucesso', texto: 'Modelo global salvo com sucesso!' });
+                setMensagem({ tipo: 'sucesso', texto: 'Modelo salvo com sucesso!' });
             }
             setIsModalOpen(false);
             setTemplateEdicao(null);
@@ -91,22 +92,47 @@ export const ModuloTreinos = () => {
                 <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
-                            <Book className="text-brand" size={18} /> Modelos Globais
+                            <Book className="text-brand" size={18} /> {ehAdmin ? 'Modelos' : 'Meus modelos'}
                         </h3>
                         <span className="text-xs font-bold text-text-secondary bg-overlay px-2 py-1 rounded border border-border uppercase tracking-wide">{templates.length} salvos</span>
                     </div>
 
                     <div className="space-y-3">
-                        {templates.map(template => (
+                        {templates.map(template => {
+                            // Modelo da plataforma (trainer_id nulo): o personal só usa/copia; admin edita tudo.
+                            const daPlataforma = template.trainer_id == null && !ehAdmin;
+                            return (
                             <div key={template.id} className="p-4 bg-overlay border border-border/60 rounded-lg hover:border-accent/40 transition-all group">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <p className="font-bold text-base text-text-primary group-hover:text-accent transition-colors">{template.titulo}</p>
+                                        <p className="font-bold text-base text-text-primary group-hover:text-accent transition-colors">
+                                            {template.titulo}
+                                            {daPlataforma && (
+                                                <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-widest text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded">PTRoster</span>
+                                            )}
+                                        </p>
                                         <p className="text-xs text-text-secondary font-bold uppercase tracking-widest mt-1">
                                             {template.treinos?.length || 0} divisões · {template.duracao_semanas} semanas
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-1">
+                                        {daPlataforma ? (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await treinoService.clonarPlano(template.id, null);
+                                                        setMensagem({ tipo: 'sucesso', texto: 'Modelo copiado para Meus modelos!' });
+                                                        carregarDados();
+                                                    } catch (err) {
+                                                        setMensagem({ tipo: 'erro', texto: 'Erro ao copiar o modelo: ' + err.message });
+                                                    }
+                                                }}
+                                                className="p-2 text-text-muted hover:text-brand hover:bg-brand/10 rounded-md transition-colors"
+                                                title="Copiar para meus modelos"
+                                            >
+                                                <Copy size={14} />
+                                            </button>
+                                        ) : (<>
                                         <button
                                             onClick={() => { setTemplateEdicao(template); setIsModalOpen(true); }}
                                             className="p-2 text-text-muted hover:text-brand hover:bg-brand/10 rounded-md transition-colors"
@@ -116,7 +142,7 @@ export const ModuloTreinos = () => {
                                         </button>
                                         <button
                                             onClick={async () => {
-                                                if (confirm("Deseja apagar este modelo global?")) {
+                                                if (confirm("Deseja apagar este modelo?")) {
                                                     await treinoService.deletarPlano(template.id);
                                                     carregarDados();
                                                 }
@@ -126,12 +152,14 @@ export const ModuloTreinos = () => {
                                         >
                                             <Trash2 size={14} />
                                         </button>
+                                        </>)}
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                         {templates.length === 0 && (
-                            <div className="text-center py-8 text-text-muted italic text-xs border border-dashed border-border rounded-lg bg-overlay/50">Nenhum modelo global criado.</div>
+                            <div className="text-center py-8 text-text-muted italic text-xs border border-dashed border-border rounded-lg bg-overlay/50">Nenhum modelo criado.</div>
                         )}
                     </div>
                 </div>
