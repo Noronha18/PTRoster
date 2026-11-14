@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from datetime import date, datetime
 from typing import Optional, List, Literal
 
@@ -20,6 +20,8 @@ class TokenData(BaseModel):
 class ExercicioBase(BaseModel):
     nome: str
     grupo_muscular: str
+    # Secundários aparecem na biblioteca e no filtro, mas não contam no volume semanal.
+    grupos_secundarios: List[str] = Field(default_factory=list)
     video_url: Optional[str] = None
 
 class ExercicioCreate(ExercicioBase):
@@ -37,6 +39,25 @@ class ExercicioCreate(ExercicioBase):
                 f"Grupo muscular inválido. Use um de: {', '.join(GRUPOS_MUSCULARES)}"
             )
         return canonico
+
+    @field_validator("grupos_secundarios")
+    @classmethod
+    def _secundarios_canonicos(cls, grupos: List[str]) -> List[str]:
+        canonicos = []
+        for grupo in grupos:
+            canonico = normalizar_grupo(grupo)
+            if canonico is None:
+                raise ValueError(
+                    f"Grupo muscular inválido: '{grupo}'. Use um de: {', '.join(GRUPOS_MUSCULARES)}"
+                )
+            if canonico not in canonicos:
+                canonicos.append(canonico)
+        return canonicos
+
+    @model_validator(mode="after")
+    def _principal_fora_dos_secundarios(self):
+        self.grupos_secundarios = [g for g in self.grupos_secundarios if g != self.grupo_muscular]
+        return self
 
 class ExercicioPublic(ExercicioBase):
     """Leitura permissiva: dados legados não podem quebrar a resposta da API."""

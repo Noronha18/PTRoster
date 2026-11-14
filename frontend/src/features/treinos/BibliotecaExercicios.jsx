@@ -17,6 +17,7 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
     const [novoExercicio, setNovoExercicio] = useState({
         nome: '',
         grupo_muscular: '',
+        grupos_secundarios: [],
         video_url: ''
     });
     const [salvando, setSalvando] = useState(false);
@@ -48,7 +49,7 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
             await treinoService.criarExercicio(novoExercicio);
             await carregar(); // Recarrega a lista
             setShowModal(false);
-            setNovoExercicio({ nome: '', grupo_muscular: '', video_url: '' });
+            setNovoExercicio({ nome: '', grupo_muscular: '', grupos_secundarios: [], video_url: '' });
         } catch (err) {
             toast({ tipo: 'erro', texto: err.message || "Erro ao salvar exercício" });
         } finally {
@@ -56,13 +57,26 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
         }
     };
 
+    // Um exercício pertence ao grupo principal e aos secundários (ex.: supino em Peito e em Tríceps).
+    const trabalha = (ex, grupo) => ex.grupo_muscular === grupo || (ex.grupos_secundarios || []).includes(grupo);
+
     const grupos = [
         'Todos',
-        ...GRUPOS_MUSCULARES.filter(grupo => exercicios.some(ex => ex.grupo_muscular === grupo)),
+        ...GRUPOS_MUSCULARES.filter(grupo => exercicios.some(ex => trabalha(ex, grupo))),
     ];
 
+    const alternarSecundario = (grupo) => {
+        setNovoExercicio((atual) => {
+            const lista = atual.grupos_secundarios;
+            return {
+                ...atual,
+                grupos_secundarios: lista.includes(grupo) ? lista.filter(g => g !== grupo) : [...lista, grupo],
+            };
+        });
+    };
+
     const exerciciosFiltrados = exercicios.filter(ex => {
-        const matchesGrupo = grupoAtivo === 'Todos' || ex.grupo_muscular === grupoAtivo;
+        const matchesGrupo = grupoAtivo === 'Todos' || trabalha(ex, grupoAtivo);
         const matchesBusca = ex.nome.toLowerCase().includes(busca.toLowerCase());
         return matchesGrupo && matchesBusca;
     });
@@ -131,7 +145,12 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
                             <div className="flex justify-between items-center">
                                 <div>
                                     <p className="text-lg font-bold text-text-primary group-hover:text-brand transition-colors leading-tight">{ex.nome}</p>
-                                    <p className="text-xs text-text-muted uppercase font-black tracking-widest mt-1 group-hover:text-text-secondary">{ex.grupo_muscular}</p>
+                                    <p className="text-xs text-text-muted uppercase font-black tracking-widest mt-1 group-hover:text-text-secondary">
+                                        {ex.grupo_muscular}
+                                        {ex.grupos_secundarios?.length > 0 && (
+                                            <span className="normal-case font-bold tracking-normal"> · também {ex.grupos_secundarios.join(', ')}</span>
+                                        )}
+                                    </p>
                                 </div>
                                 <div className="w-8 h-8 rounded-xl bg-overlay border border-border flex items-center justify-center text-text-muted group-hover:text-brand group-hover:border-brand/20 group-hover:bg-surface transition-all shadow-sm">
                                     <Plus size={16} />
@@ -172,7 +191,11 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
                                     required
                                     className="w-full bg-overlay border border-border rounded-2xl px-5 py-4 text-text-primary font-bold focus:ring-2 focus:ring-brand/20 outline-none transition-all cursor-pointer"
                                     value={novoExercicio.grupo_muscular}
-                                    onChange={(e) => setNovoExercicio({...novoExercicio, grupo_muscular: e.target.value})}
+                                    onChange={(e) => setNovoExercicio({
+                                        ...novoExercicio,
+                                        grupo_muscular: e.target.value,
+                                        grupos_secundarios: novoExercicio.grupos_secundarios.filter(g => g !== e.target.value),
+                                    })}
                                 >
                                     <option value="" disabled>Selecione...</option>
                                     {GRUPOS_MUSCULARES.map((grupo) => (
@@ -180,6 +203,31 @@ export const BibliotecaExercicios = ({ onSelectExercicio }) => {
                                     ))}
                                 </select>
                             </div>
+
+                            <fieldset className="space-y-2">
+                                <legend className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Também trabalha (opcional)</legend>
+                                <p className="text-xs text-text-muted ml-1">Aparece no filtro desses grupos. Só o principal conta no volume semanal.</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {GRUPOS_MUSCULARES.filter(g => g !== novoExercicio.grupo_muscular).map((grupo) => {
+                                        const marcado = novoExercicio.grupos_secundarios.includes(grupo);
+                                        return (
+                                            <button
+                                                key={grupo}
+                                                type="button"
+                                                aria-pressed={marcado}
+                                                onClick={() => alternarSecundario(grupo)}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
+                                                    marcado
+                                                        ? 'bg-brand text-brand-fg border-brand'
+                                                        : 'bg-overlay text-text-muted border-border hover:text-text-secondary'
+                                                }`}
+                                            >
+                                                {grupo}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </fieldset>
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">URL do Vídeo (Opcional)</label>

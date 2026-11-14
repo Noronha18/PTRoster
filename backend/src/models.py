@@ -148,7 +148,8 @@ class Exercicio(Base):
 
     id = Column(Integer, primary_key=True)
     nome = Column(String, unique=True, index=True)
-    grupo_muscular = Column(String, index=True)
+    grupo_muscular = Column(String, index=True)  # principal: o único que conta no volume semanal
+    grupos_secundarios = Column(JSON, nullable=False, default=list, server_default='[]')
     video_url = Column(String, nullable=True)
 
     __table_args__ = (Index('uq_exercicios_nome_lower', func.lower(nome), unique=True),)

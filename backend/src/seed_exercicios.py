@@ -35,6 +35,11 @@ exercicios_base = [
     {"nome": "Mesa Flexora", "grupo_muscular": "Posterior", "video_url": "https://www.youtube.com/watch?v=8Nat6GRiEoc"},
     {"nome": "Cadeira Flexora", "grupo_muscular": "Posterior", "video_url": "https://www.youtube.com/watch?v=e0_xHkXw350"},
     {"nome": "Elevação Pélvica", "grupo_muscular": "Glúteos", "video_url": "https://www.youtube.com/watch?v=kvmT_ZlgVI0"},
+
+    # PANTURRILHA
+    {"nome": "Panturrilha em Pé (Máquina)", "grupo_muscular": "Panturrilha", "video_url": None},
+    {"nome": "Panturrilha Sentado", "grupo_muscular": "Panturrilha", "video_url": None},
+    {"nome": "Panturrilha no Leg Press", "grupo_muscular": "Panturrilha", "video_url": None},
     {"nome": "Cadeira Abdutora", "grupo_muscular": "Glúteos", "video_url": "https://www.youtube.com/watch?v=50qHGus1TZk"},
     {"nome": "Cadeira Adutora", "grupo_muscular": "Glúteos", "video_url": "https://www.youtube.com/watch?v=goQVyEGMYMM"},
 
