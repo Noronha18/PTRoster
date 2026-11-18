@@ -29,7 +29,7 @@ export const CardAvisos = ({ onSelectAluno }) => {
     ];
 
     return (
-        <section aria-labelledby="avisos-titulo" className="bg-warning-subtle border border-warning/30 rounded-3xl p-5 sm:p-6 space-y-3">
+        <section aria-labelledby="avisos-titulo" className="bg-warning-subtle border border-warning/30 rounded-xl p-4 space-y-2">
             <h3 id="avisos-titulo" className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-warning-text">
                 <AlertTriangle size={16} /> Atenção
             </h3>
@@ -39,7 +39,7 @@ export const CardAvisos = ({ onSelectAluno }) => {
                         <button
                             type="button"
                             onClick={() => onSelectAluno(item.aluno_id)}
-                            className="w-full flex justify-between items-center gap-4 py-3 text-left hover:bg-warning/10 rounded-xl px-2 transition-colors"
+                            className="w-full flex justify-between items-center gap-3 py-2 text-left hover:bg-warning/10 rounded-xl px-2 transition-colors"
                         >
                             <span className="font-bold text-text-primary">{item.nome}</span>
                             <span className={`text-xs font-semibold ${item.dias < 0 ? 'text-danger' : 'text-warning-text'}`}>{item.texto}</span>

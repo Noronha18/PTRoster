@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight, Plus, UserCircle2, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, Plus, UserCircle2, CheckCircle2, ArrowDown, ArrowUp, Search } from 'lucide-react';
 import { alunoService } from '../../services/api';
 import { FormAlunoModal } from './FormAlunoModal';
+import { filtrarAlunos } from './listaAlunos';
 import { CardAvisos } from './CardAvisos';
 import { AtividadeRecente } from '../sessoes/AtividadeRecente';
 import { useToast } from '../../components/ToastProvider';
@@ -13,12 +14,15 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [abaStatus, setAbaStatus] = useState('ativos');
+    const [busca, setBusca] = useState('');
+    const [ordem, setOrdem] = useState('asc');
 
     const carregarAlunos = async () => {
         try {
             setLoading(true);
             const data = await alunoService.listar();
             setAlunos(data);
+            setError(null);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -41,10 +45,9 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
         carregarAlunos();
     }, []);
 
-    const alunosFiltrados = alunos.filter(aluno => {
-        if (abaStatus === 'ativos') return aluno.status === 'ativo';
-        return aluno.status === 'suspenso' || aluno.status === 'cancelado';
-    });
+    const alunosFiltrados = filtrarAlunos(alunos, abaStatus, busca, ordem);
+    const temBusca = Boolean(busca.trim());
+    const RotuloOrdem = ordem === 'asc' ? ArrowDown : ArrowUp;
 
     if (loading) {
         return (
@@ -57,7 +60,7 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
 
     return (
         <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="flex justify-between items-center px-2">
+            <div className="flex flex-wrap justify-between items-center gap-3 px-2">
                 <div>
                     <h2 className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">Alunos</h2>
                     <p className="text-text-secondary text-xs sm:text-sm font-medium">Gestão de performance e frequência.</p>
@@ -67,12 +70,28 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
                     className="bg-brand hover:bg-brand-hover text-brand-fg p-3 rounded-xl font-bold transition-all shadow-sm active:scale-95 flex items-center gap-2"
                 >
                     <Plus size={20} />
-                    <span className="hidden sm:inline text-xs uppercase tracking-widest">Novo Aluno</span>
+                    <span className="text-xs font-semibold">Novo aluno</span>
                 </button>
             </div>
 
-            <CardAvisos onSelectAluno={onSelectAluno} />
-            <AtividadeRecente onSelectAluno={onSelectAluno} />
+            <div role="search" aria-label="Buscar alunos" className="flex flex-wrap items-center gap-2 px-2">
+                <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-surface px-3 focus-within:ring-2 focus-within:ring-brand/30">
+                    <Search size={18} className="shrink-0 text-text-muted" aria-hidden="true" />
+                    <span className="sr-only">Buscar aluno pelo nome</span>
+                    <input
+                        type="search"
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        placeholder="Buscar aluno pelo nome"
+                        className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none"
+                    />
+                </label>
+                {busca && (
+                    <button type="button" onClick={() => setBusca('')} className="min-h-11 px-3 text-sm font-semibold text-brand">
+                        Limpar busca
+                    </button>
+                )}
+            </div>
 
             <div
                 role="tablist"
@@ -105,9 +124,28 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
                 </div>
             )}
 
-            {alunosFiltrados.length === 0 ? (
+            {!error && (
+                <div className="flex items-center justify-between gap-2 px-2">
+                    <p role="status" className="text-sm text-text-secondary">
+                        {alunosFiltrados.length} {alunosFiltrados.length === 1 ? 'aluno' : 'alunos'}
+                    </p>
+                    {alunosFiltrados.length > 1 && (
+                        <button
+                            type="button"
+                            onClick={() => setOrdem(ordem === 'asc' ? 'desc' : 'asc')}
+                            aria-label={ordem === 'asc' ? 'Ordenar nomes de Z a A' : 'Ordenar nomes de A a Z'}
+                            className="hidden min-h-11 items-center gap-1 px-2 text-sm font-semibold text-text-secondary sm:flex"
+                        >
+                            <RotuloOrdem size={16} aria-hidden="true" />
+                            Nome ({ordem === 'asc' ? 'A–Z' : 'Z–A'})
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {alunosFiltrados.length === 0 ? !error && (
                 <div className="py-20 sm:py-32 border border-dashed border-border rounded-xl text-center mx-2 bg-surface/50">
-                    <p className="text-text-muted font-medium italic">Nenhum aluno encontrado nesta categoria.</p>
+                    <p className="text-text-muted font-medium italic">{temBusca ? "Nenhum aluno corresponde à busca." : "Nenhum aluno nesta categoria."}</p>
                 </div>
             ) : (
                 <div className="mx-2 bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
@@ -118,7 +156,7 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
                             tabIndex={0}
                             onClick={() => onSelectAluno(aluno.id)}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
+                                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                                     e.preventDefault();
                                     onSelectAluno(aluno.id);
                                 }
@@ -141,15 +179,15 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-0.5">
                                     <p className="text-text-secondary text-xs font-mono tracking-tight uppercase">{aluno.cpf || "Sem CPF"}</p>
                                     <span className="w-1 h-1 rounded-full bg-border hidden sm:inline" />
-                                    <p className="text-xs text-text-secondary font-medium hidden sm:block uppercase tracking-wide">
+                                    <p className="text-xs text-text-secondary font-medium">
                                         {aluno.modalidade === 'consultoria'
                                             ? `Consultoria${aluno.data_vencimento_consultoria ? ` · vence ${new Date(aluno.data_vencimento_consultoria + 'T00:00').toLocaleDateString('pt-BR')}` : ''}`
                                             : aluno.tipo_pagamento === 'pacote'
                                                 ? `${aluno.saldo_aulas} aulas restantes`
-                                                : 'Plano Mensal'}
+                                                : 'Presencial · mensal'}
                                     </p>
                                 </div>
                             </div>
@@ -178,6 +216,9 @@ export const ListaAlunosFeature = ({ onSelectAluno }) => {
                     ))}
                 </div>
             )}
+
+            <CardAvisos onSelectAluno={onSelectAluno} />
+            <AtividadeRecente onSelectAluno={onSelectAluno} />
 
             <FormAlunoModal
                 isOpen={isModalOpen}

@@ -41,10 +41,10 @@ export const AtividadeRecente = ({ onSelectAluno }) => {
     if (!itens?.length) return null;
 
     return (
-        <section aria-labelledby="atividade-titulo" className="bg-surface border border-border rounded-3xl p-5 sm:p-6 space-y-3">
-            <h3 id="atividade-titulo" className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-text-muted">
-                <Activity size={16} className="text-brand" /> Atividade recente
-            </h3>
+        <details className="bg-surface border border-border rounded-xl px-4">
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-text-secondary">
+                <Activity size={16} className="mx-2 inline text-brand" aria-hidden="true" /> Atividade recente ({itens.length})
+            </summary>
             <ul className="divide-y divide-border-faint">
                 {itens.map(item => (
                     <li key={item.sessao_id}>
@@ -63,6 +63,6 @@ export const AtividadeRecente = ({ onSelectAluno }) => {
                     </li>
                 ))}
             </ul>
-        </section>
+        </details>
     );
 };
