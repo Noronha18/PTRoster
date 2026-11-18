@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { LoginView } from './features/auth/LoginView';
 import { authService, getUserRole } from './services/api';
 import { ToastProvider } from './components/ToastProvider';
+import { lerRota } from './rotas';
 
 // Imports de Features
 import { ListaAlunosFeature } from './features/alunos/ListaAlunos';
@@ -11,11 +12,19 @@ import DashboardFinanceiro from './features/financeiro/DashboardFinanceiro';
 import DashboardFinanceiroPersonais from './features/financeiro/DashboardFinanceiroPersonais';
 import { PainelAdmin } from './features/admin/PainelAdmin';
 
+const lerHash = () => window.location.hash;
+const ouvirHash = (atualizar) => {
+  window.addEventListener('hashchange', atualizar);
+  return () => window.removeEventListener('hashchange', atualizar);
+};
+const abrirAluno = (id) => { window.location.hash = `/aluno/${id}`; };
+const abrirLista = () => { window.location.hash = '/alunos'; };
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
-  const [abaAtiva, setAbaAtiva] = useState('alunos');
-  const [selectedAlunoId, setSelectedAlunoId] = useState(null);
+  const hash = useSyncExternalStore(ouvirHash, lerHash);
   const userRole = getUserRole();
+  const { aba: abaAtiva, alunoId } = lerRota(hash, userRole);
 
   const handleLogout = () => {
     authService.logout();
@@ -34,9 +43,10 @@ function App() {
   }
 
   const renderConteudo = () => {
+    if (alunoId) return <DetalheAluno key={alunoId} alunoId={alunoId} onBack={abrirLista} />;
     switch (abaAtiva) {
       case 'alunos':
-        return <ListaAlunosFeature onSelectAluno={(id) => setSelectedAlunoId(id)} />;
+        return <ListaAlunosFeature onSelectAluno={abrirAluno} />;
       case 'treinos':
         return <ModuloTreinos />;
       case 'financeiro':
@@ -44,7 +54,7 @@ function App() {
       case 'admin':
         return <PainelAdmin />;
       default:
-        return <ListaAlunosFeature onSelectAluno={(id) => setSelectedAlunoId(id)} />;
+        return <ListaAlunosFeature onSelectAluno={abrirAluno} />;
     }
   };
 
@@ -68,7 +78,6 @@ function App() {
           </div>
 
           <nav
-            role="tablist"
             aria-label="Navegação principal"
             className="flex p-1 bg-overlay rounded-lg border border-border w-full lg:w-auto overflow-x-auto no-scrollbar"
           >
@@ -78,15 +87,10 @@ function App() {
               { id: 'financeiro', label: 'Financeiro' },
               ...(userRole === 'admin' ? [{ id: 'admin', label: 'Operações' }] : []),
             ].map((aba) => (
-              <button
+              <a
                 key={aba.id}
-                role="tab"
-                aria-selected={abaAtiva === aba.id}
-                aria-controls="main-tab-panel"
-                onClick={() => {
-                  setAbaAtiva(aba.id);
-                  setSelectedAlunoId(null);
-                }}
+                href={`#/${aba.id}`}
+                aria-current={abaAtiva === aba.id ? 'page' : undefined}
                 className={`flex-1 lg:flex-none px-6 py-2 rounded-md text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                   abaAtiva === aba.id
                     ? 'bg-surface text-text-primary shadow-sm ring-1 ring-text-ink/5'
@@ -94,7 +98,7 @@ function App() {
                 }`}
               >
                 {aba.label}
-              </button>
+              </a>
             ))}
           </nav>
 
@@ -107,8 +111,6 @@ function App() {
         </header>
 
         <main
-          id="main-tab-panel"
-          role="tabpanel"
           className="min-h-[60vh] animate-in fade-in slide-in-from-bottom-2 duration-300"
         >
           {renderConteudo()}
@@ -121,17 +123,6 @@ function App() {
         </footer>
       </div>
 
-      {/* Visão de Prontuário (Sobreposta) */}
-      {selectedAlunoId && (
-        <div className="fixed inset-0 z-50 bg-canvas overflow-y-auto custom-scrollbar pb-[env(safe-area-inset-bottom)]">
-            <div className="max-w-7xl mx-auto w-full p-4 md:p-8 lg:p-12">
-                <DetalheAluno
-                    alunoId={selectedAlunoId}
-                    onBack={() => setSelectedAlunoId(null)}
-                />
-            </div>
-        </div>
-      )}
     </div>
   );
 }
