@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Dumbbell, Plus, Book, CheckCircle2, AlertCircle, Trash2, Pencil, Copy } from 'lucide-react';
-import { alunoService, treinoService, getUserRole } from '../../services/api';
+import { treinoService, getUserRole } from '../../services/api';
 import { ModalPlanoTreino } from '../alunos/ModalPlanoTreino';
 
 export const ModuloTreinos = () => {
-    const [alunos, setAlunos] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [carregando, setCarregando] = useState(true);
+    const [erroLista, setErroLista] = useState(false);
     const [mensagem, setMensagem] = useState({ tipo: '', texto: '' });
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [templateEdicao, setTemplateEdicao] = useState(null);
@@ -13,15 +13,14 @@ export const ModuloTreinos = () => {
     const ehAdmin = getUserRole() === 'admin';
 
     const carregarDados = async () => {
+        setCarregando(true);
+        setErroLista(false);
         try {
-            const [listaAlunos, listaTemplates] = await Promise.all([
-                alunoService.listar(),
-                treinoService.listarTemplates()
-            ]);
-            setAlunos(listaAlunos);
-            setTemplates(listaTemplates);
+            setTemplates(await treinoService.listarTemplates());
         } catch {
-            // falha silenciosa — dados ficam em estado vazio
+            setErroLista(true);
+        } finally {
+            setCarregando(false);
         }
     };
 
@@ -30,7 +29,6 @@ export const ModuloTreinos = () => {
     }, []);
 
     const handleSavePlano = async (payload) => {
-        setLoading(true);
         try {
             if (templateEdicao) {
                 await treinoService.atualizarPlano(templateEdicao.id, payload);
@@ -49,8 +47,6 @@ export const ModuloTreinos = () => {
         } catch (err) {
             setMensagem({ tipo: 'erro', texto: 'Erro ao salvar o plano: ' + err.message });
             return false;
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -98,7 +94,14 @@ export const ModuloTreinos = () => {
                     </div>
 
                     <div className="space-y-3">
-                        {templates.map(template => {
+                        {carregando && <p role="status" className="text-sm text-text-secondary">Carregando modelos…</p>}
+                        {!carregando && erroLista && (
+                            <div role="alert" className="text-sm text-danger">
+                                <p>Não foi possível carregar os modelos.</p>
+                                <button onClick={carregarDados} type="button" className="min-h-11 underline">Tentar novamente</button>
+                            </div>
+                        )}
+                        {!carregando && !erroLista && templates.map(template => {
                             // Modelo da plataforma (trainer_id nulo): o personal só usa/copia; admin edita tudo.
                             const daPlataforma = template.trainer_id == null && !ehAdmin;
                             return (
@@ -142,9 +145,12 @@ export const ModuloTreinos = () => {
                                         </button>
                                         <button
                                             onClick={async () => {
-                                                if (confirm("Deseja apagar este modelo?")) {
+                                                if (!confirm("Deseja apagar este modelo?")) return;
+                                                try {
                                                     await treinoService.deletarPlano(template.id);
                                                     carregarDados();
+                                                } catch (err) {
+                                                    setMensagem({ tipo: 'erro', texto: err.message });
                                                 }
                                             }}
                                             className="p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
@@ -158,7 +164,7 @@ export const ModuloTreinos = () => {
                             </div>
                             );
                         })}
-                        {templates.length === 0 && (
+                        {!carregando && !erroLista && templates.length === 0 && (
                             <div className="text-center py-8 text-text-muted italic text-xs border border-dashed border-border rounded-lg bg-overlay/50">Nenhum modelo criado.</div>
                         )}
                     </div>

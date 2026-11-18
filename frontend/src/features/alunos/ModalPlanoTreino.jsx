@@ -1,3 +1,4 @@
+import { validarPlano } from './validarPlano';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Dumbbell, Trash2, Plus, Save, Book, ChevronRight, ChevronLeft, GripVertical, CheckCircle2 } from 'lucide-react';
 import { treinoService } from '../../services/api';
@@ -97,6 +98,9 @@ const planoVazio = () => ({
 
 export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, chaveRascunho }) {
   const toast = useToast();
+  const [erroPlano, setErroPlano] = useState(null);
+  const [salvando, setSalvando] = useState(false);
+  const envioEmAndamento = useRef(false);
   const [step, setStep] = useState(1);
   const [activeTreinoIndex, setActiveTreinoIndex] = useState(0);
   const [mobileLibOpen, setMobileLibOpen] = useState(false);
@@ -129,9 +133,10 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
   };
 
   const aplicarInicial = () => {
-    const inicial = planoEdicao ? { ...planoEdicao, detalhes: planoEdicao.detalhes || '' } : planoVazio();
+    const inicial = planoEdicao ? { ...structuredClone(planoEdicao), detalhes: planoEdicao.detalhes || '' } : planoVazio();
     planoInicialRef.current = JSON.stringify(inicial);
     setNovoPlano(inicial);
+    setErroPlano(null);
     setStep(planoEdicao ? 2 : 1);
     setActiveTreinoIndex(0);
     return inicial;
@@ -183,6 +188,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
 
   const handleRemoveTreino = (tIndex) => {
     if (novoPlano.treinos.length > 1) {
+      if (novoPlano.treinos[tIndex].prescricoes.length && !window.confirm('Remover este treino e seus exercícios do plano?')) return;
       const updated = novoPlano.treinos.filter((_, i) => i !== tIndex);
       setNovoPlano({ ...novoPlano, treinos: updated });
       setActiveTreinoIndex(Math.max(0, tIndex - 1));
@@ -289,31 +295,71 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
     setStep(2);
   };
 
-  const handleFormSubmit = async () => {
+  const exibirErro = (erro) => {
+    setErroPlano(erro);
+    if (erro.treinoIndex == null) {
+      if (erro.campo) setStep(1);
+    } else {
+      setStep(2);
+      setActiveTreinoIndex(erro.treinoIndex);
+      setMobileLibOpen(false);
+      editorScrollRef.current?.scrollTo(0, 0);
+    }
+  };
+
+  const continuar = () => {
+    const erro = validarPlano(novoPlano, true);
+    if (erro) return exibirErro(erro);
+    setErroPlano(null);
+    setStep(2);
+  };
+
+  const salvarPlano = async (comoModelo = false) => {
+    if (envioEmAndamento.current) return;
+    const erro = validarPlano(novoPlano);
+    if (erro) return exibirErro(erro);
+    setErroPlano(null);
+    envioEmAndamento.current = true;
+    setSalvando(true);
     const payload = {
       ...novoPlano,
+      titulo: novoPlano.titulo.trim(),
+      duracao_semanas: Number(novoPlano.duracao_semanas),
       treinos: novoPlano.treinos.map((t) => {
-        const vezes = Number.parseInt(t.vezes_por_semana, 10);
         return {
           ...t,
-          vezes_por_semana: Number.isNaN(vezes) ? 1 : Math.min(7, Math.max(1, vezes)),
+          nome: t.nome.trim(),
+          vezes_por_semana: Number(t.vezes_por_semana ?? 1),
           dias_sugeridos: Array.isArray(t.dias_sugeridos) ? t.dias_sugeridos : [],
           prescricoes: t.prescricoes.map(p => ({
             id: p.id || null,
             exercicio_id: parseInt(p.exercicio_id),
-            series: parseInt(p.series) || 1,
-            repeticoes: p.repeticoes,
+            series: Number(p.series),
+            repeticoes: p.repeticoes.trim(),
             carga: p.carga || null,
-            descanso: parseInt(p.descanso) || 0,
+            descanso: Number(p.descanso),
             metodo: p.metodo,
             observacoes: p.observacoes || null
           }))
         };
       })
     };
-    // onSave devolve false quando a API recusa; aí o rascunho continua guardado.
-    const ok = await onSave(payload);
-    if (ok !== false && chave) gravarRascunho(chave, null);
+    try {
+      if (comoModelo) {
+        await treinoService.criarTemplate(payload);
+        toast({ tipo: 'sucesso', texto: 'Modelo salvo na biblioteca.' });
+        carregarTemplates();
+      } else {
+        const ok = await onSave(payload);
+        if (ok === false) throw new Error('Não foi possível salvar o plano. Tente novamente.');
+        if (chave) gravarRascunho(chave, null);
+      }
+    } catch (err) {
+      setErroPlano({ mensagem: err.message });
+    } finally {
+      envioEmAndamento.current = false;
+      setSalvando(false);
+    }
   };
 
   const treinoAtivo = novoPlano.treinos[activeTreinoIndex] ?? novoPlano.treinos[0] ?? null;
@@ -363,7 +409,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                 <Book size={14} /> <span className="hidden sm:inline">Templates</span>
               </button>
             )}
-            <button onClick={onClose} className="p-2.5 md:p-3 bg-overlay text-text-muted hover:text-text-secondary rounded-full transition-all active:scale-90">
+            <button onClick={onClose} disabled={salvando} aria-label="Fechar editor" className="p-2.5 md:p-3 bg-overlay text-text-muted hover:text-text-secondary rounded-full transition-all active:scale-90">
               <X size={20} />
             </button>
           </div>
@@ -377,6 +423,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
             <button
               type="button"
               onClick={descartarRascunho}
+              disabled={salvando}
               className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest text-amber-900 border border-amber-300 hover:bg-amber-100"
             >
               Descartar rascunho
@@ -403,7 +450,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+        <div inert={salvando} className="flex-1 overflow-hidden flex flex-col min-h-0">
 
           {step === 1 ? (
             /* PASSO 1: INFO */
@@ -416,9 +463,12 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
 
                 <div className="space-y-5 md:space-y-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Título do Plano *</label>
+                    <label htmlFor="prescricao-titulo" className="text-sm font-semibold text-text-secondary">Título do plano</label>
                     <input
-                      type="text" placeholder="Ex: Protocolo de Verão - Cutting"
+                      id="prescricao-titulo" type="text" aria-required="true"
+                      aria-invalid={erroPlano?.campo === 'titulo'}
+                      aria-describedby={erroPlano?.campo === 'titulo' ? 'erro-plano' : undefined}
+                      placeholder="Ex: Força e hipertrofia"
                       className="w-full bg-overlay border border-border rounded-2xl md:rounded-3xl px-5 md:px-8 py-4 md:py-6 text-lg md:text-xl text-text-primary font-black focus:ring-4 focus:ring-brand/10 outline-none transition-all placeholder:text-text-muted"
                       value={novoPlano.titulo}
                       onChange={e => setNovoPlano({ ...novoPlano, titulo: e.target.value })}
@@ -436,12 +486,14 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-text-secondary uppercase tracking-wide ml-1">Duração (Semanas)</label>
+                      <label htmlFor="prescricao-duracao" className="text-sm font-semibold text-text-secondary">Duração em semanas</label>
                       <input
-                        type="number"
+                        id="prescricao-duracao" type="number" min="1"
+                        aria-invalid={erroPlano?.campo === 'duracao'}
+                        aria-describedby={erroPlano?.campo === 'duracao' ? 'erro-plano' : undefined}
                         className="w-full bg-overlay border border-border rounded-2xl md:rounded-3xl px-5 md:px-6 py-4 md:py-5 text-text-primary font-bold focus:ring-4 focus:ring-brand/10 outline-none transition-all"
                         value={novoPlano.duracao_semanas}
-                        onChange={e => setNovoPlano({ ...novoPlano, duracao_semanas: parseInt(e.target.value) || 0 })}
+                        onChange={e => setNovoPlano({ ...novoPlano, duracao_semanas: e.target.value })}
                       />
                     </div>
                   </div>
@@ -459,8 +511,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
 
                 <div className="pt-4 md:pt-8">
                   <button
-                    disabled={!novoPlano.titulo}
-                    onClick={() => setStep(2)}
+                    onClick={continuar}
                     className="w-full py-5 md:py-6 bg-brand hover:bg-brand-hover disabled:bg-overlay disabled:text-text-muted text-brand-fg rounded-2xl md:rounded-3xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95"
                   >
                     Continuar para Montagem <ChevronRight size={16} />
@@ -545,6 +596,8 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                       <label className="text-2xs font-black text-text-muted uppercase tracking-widest ml-1">Nome do Treino</label>
                       <input
                         type="text"
+                        aria-label="Nome do treino"
+                        aria-invalid={erroPlano?.campo === 'nome' && erroPlano.treinoIndex === activeTreinoIndex}
                         className="w-full bg-transparent text-xl md:text-2xl font-black text-text-primary outline-none placeholder:text-text-muted"
                         value={treinoAtivo?.nome ?? ''}
                         onChange={e => handleTreinoChange(activeTreinoIndex, 'nome', e.target.value)}
@@ -561,6 +614,8 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                           <label className="text-2xs font-black text-text-muted uppercase tracking-widest ml-1 block">Vezes / semana</label>
                           <input
                             type="number"
+                            aria-label="Sessões por semana"
+                            aria-invalid={erroPlano?.campo === 'frequencia' && erroPlano.treinoIndex === activeTreinoIndex}
                             min="1"
                             max="7"
                             value={treinoAtivo?.vezes_por_semana ?? 1}
@@ -686,7 +741,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                               <div className="space-y-1">
                                 <label className="text-2xs font-black text-text-muted uppercase tracking-widest text-center block">Séries</label>
                                 <input
-                                  type="number" value={presc.series}
+                                  type="number" min="1" aria-label={`Séries de ${presc.nome_exercicio}`} value={presc.series}
                                   className="w-full bg-overlay border border-border rounded-xl py-2.5 text-center text-sm font-black text-text-primary outline-none"
                                   onChange={e => handleExercicioChange(activeTreinoIndex, exIdx, 'series', e.target.value)}
                                 />
@@ -694,7 +749,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                               <div className="space-y-1">
                                 <label className="text-2xs font-black text-text-muted uppercase tracking-widest text-center block">Reps</label>
                                 <input
-                                  type="text" value={presc.repeticoes}
+                                  type="text" aria-label={`Repetições de ${presc.nome_exercicio}`} value={presc.repeticoes}
                                   className="w-full bg-overlay border border-border rounded-xl py-2.5 text-center text-sm font-black text-text-primary outline-none"
                                   onChange={e => handleExercicioChange(activeTreinoIndex, exIdx, 'repeticoes', e.target.value)}
                                 />
@@ -702,7 +757,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                               <div className="space-y-1">
                                 <label className="text-2xs font-black text-text-muted uppercase tracking-widest text-center block">Carga</label>
                                 <input
-                                  type="text" value={presc.carga}
+                                  type="text" aria-label={`Carga de ${presc.nome_exercicio}`} value={presc.carga ?? ''}
                                   className="w-full bg-overlay border border-border rounded-xl py-2.5 text-center text-sm font-black text-accent outline-none"
                                   onChange={e => handleExercicioChange(activeTreinoIndex, exIdx, 'carga', e.target.value)}
                                   placeholder="0kg"
@@ -712,6 +767,8 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                                 <label className="text-2xs font-black text-text-muted uppercase tracking-widest text-center block">Desc.</label>
                                 <input
                                   type="number"
+                                  min="0"
+                                  aria-label={`Descanso de ${presc.nome_exercicio} em segundos`}
                                   value={nextIsSame ? 0 : presc.descanso}
                                   disabled={nextIsSame}
                                   className={`w-full border border-border rounded-xl py-2.5 text-center text-sm font-black outline-none ${nextIsSame ? 'bg-overlay/50 text-text-muted' : 'bg-overlay text-text-muted'}`}
@@ -764,7 +821,9 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                                     <label className="text-2xs font-black text-text-muted uppercase tracking-widest text-center block">{label}</label>
                                     <input
                                       type={type}
-                                      value={presc[key]}
+                                      aria-label={`${label} de ${presc.nome_exercicio}`}
+                                      min={key === 'series' ? 1 : undefined}
+                                      value={presc[key] ?? ''}
                                       placeholder={placeholder}
                                       className={`${width} bg-overlay border border-border rounded-xl py-2 text-center text-sm font-black outline-none ${className}`}
                                       onChange={e => handleExercicioChange(activeTreinoIndex, exIdx, key, e.target.value)}
@@ -775,7 +834,9 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                                   <label className="text-2xs font-black text-text-muted uppercase tracking-widest text-center block">Desc.</label>
                                   <input
                                     type="number"
-                                    value={nextIsSame ? 0 : presc.descanso}
+                                    min="0"
+                                  aria-label={`Descanso de ${presc.nome_exercicio} em segundos`}
+                                  value={nextIsSame ? 0 : presc.descanso}
                                     disabled={nextIsSame}
                                     className={`w-14 border border-border rounded-xl py-2 text-center text-sm font-black outline-none ${nextIsSame ? 'bg-overlay/50 text-text-muted cursor-not-allowed' : 'bg-overlay text-text-muted'}`}
                                     onChange={e => handleExercicioChange(activeTreinoIndex, exIdx, 'descanso', e.target.value)}
@@ -822,6 +883,7 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
                 className={`md:hidden absolute inset-0 z-20 bg-canvas flex flex-col transition-transform duration-300 ${mobileLibOpen ? 'translate-y-0' : 'translate-y-full'}`}
                 style={{ transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
                 aria-hidden={!mobileLibOpen}
+                inert={!mobileLibOpen}
               >
                 {/* Header da biblioteca mobile */}
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-surface flex-shrink-0">
@@ -853,12 +915,19 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
           )}
         </div>
 
+        {erroPlano && (
+          <p id="erro-plano" role="alert" className="shrink-0 border-t border-danger/20 bg-danger/5 px-5 py-2 text-sm text-danger">
+            {erroPlano.mensagem}
+          </p>
+        )}
+
         {/* Footer */}
         <div className="px-4 py-3 md:p-8 bg-surface border-t border-border flex justify-between items-center gap-3 flex-shrink-0">
           <div className="flex gap-3">
             {step === 2 && (
               <button
-                onClick={() => setStep(1)}
+                onClick={() => { setErroPlano(null); setStep(1); }}
+                disabled={salvando}
                 className="px-4 md:px-6 py-3 md:py-4 bg-overlay text-text-muted rounded-xl md:rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
               >
                 <ChevronLeft size={14} /> <span className="hidden sm:inline">Voltar</span>
@@ -870,42 +939,20 @@ export function ModalPlanoTreino({ isOpen, onClose, onSave, planoEdicao = null, 
             <div className="flex gap-2 md:gap-3">
               {!planoEdicao && (
                 <button
-                  onClick={() => {
-                    const payload = {
-                      ...novoPlano,
-                      treinos: novoPlano.treinos.map(t => ({
-                        ...t,
-                        prescricoes: t.prescricoes.map(p => ({
-                          exercicio_id: parseInt(p.exercicio_id),
-                          series: parseInt(p.series) || 1,
-                          repeticoes: p.repeticoes,
-                          carga: p.carga || null,
-                          descanso: parseInt(p.descanso) || 0,
-                          metodo: p.metodo,
-                          observacoes: p.observacoes || null,
-                        }))
-                      }))
-                    };
-                    treinoService.criarTemplate(payload)
-                      .then(() => {
-                        toast({ tipo: 'sucesso', texto: 'Modelo global salvo com sucesso!' });
-                        carregarTemplates();
-                      })
-                      .catch(err => {
-                        toast({ tipo: 'erro', texto: 'Erro ao salvar modelo: ' + err.message });
-                      });
-                  }}
+                  onClick={() => salvarPlano(true)}
+                  disabled={salvando}
+                  aria-label="Salvar como modelo"
                   className="px-4 md:px-8 py-3 md:py-4 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl md:rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
                 >
                   <Save size={14} /> <span className="hidden sm:inline">Salvar como Modelo</span>
                 </button>
               )}
               <button
-                onClick={handleFormSubmit}
-                disabled={prescricoes.length === 0 && novoPlano.treinos.every(t => t.prescricoes.length === 0)}
+                onClick={() => salvarPlano()}
+                disabled={salvando}
                 className="px-6 md:px-12 py-3 md:py-4 bg-brand hover:bg-brand-hover disabled:opacity-50 text-brand-fg rounded-xl md:rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-brand/20 active:scale-95 flex items-center gap-2"
               >
-                <CheckCircle2 size={14} /> {planoEdicao ? 'Salvar' : 'Finalizar'}
+                <CheckCircle2 size={14} /> {salvando ? 'Salvando…' : 'Salvar plano'}
               </button>
             </div>
           )}
