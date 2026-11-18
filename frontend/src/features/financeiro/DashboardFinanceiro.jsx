@@ -34,7 +34,7 @@ const DashboardFinanceiro = () => {
             setFinanceiroData(stats);
             setUltimosPagamentos(pagamentos || []);
             setError(null);
-        } catch (err) {
+        } catch {
             setError('Não foi possível carregar os dados financeiros.');
         } finally {
             setLoading(false);
@@ -70,16 +70,20 @@ const DashboardFinanceiro = () => {
                     onClick={() => setIsModalOpen(true)}
                     className="w-full sm:w-auto bg-brand hover:bg-brand-hover text-brand-fg px-6 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95 uppercase text-xs tracking-widest"
                 >
-                    <Plus size={16} /> Registrar Lançamento
+                    <Plus size={16} /> Registrar recebimento
                 </button>
             </div>
 
             {error && (
                 <div className="bg-danger/10 border border-danger/20 text-danger p-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-3 mx-2">
                     <AlertCircle size={16} /> {error}
+                    <button type="button" onClick={carregarDados} className="ml-auto min-h-11 px-2 underline">
+                        Tentar novamente
+                    </button>
                 </div>
             )}
 
+            {!error && <>
             <CardsKPI dados={financeiroData} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch mx-2">
@@ -93,12 +97,13 @@ const DashboardFinanceiro = () => {
                         <div className="w-10 h-10 bg-overlay text-brand rounded-lg flex items-center justify-center border border-border">
                             <DollarSign size={18} />
                         </div>
-                        <h3 className="text-lg font-bold text-text-primary tracking-tight">Lançamentos Recentes</h3>
+                        <h3 className="text-lg font-bold text-text-primary tracking-tight">Recebimentos recentes</h3>
                     </div>
-                    <span className="text-text-secondary text-xs font-bold uppercase tracking-widest bg-overlay px-3 py-1 rounded border border-border">Auditoria</span>
                 </div>
                 <TabelaPagamentos pagamentos={ultimosPagamentos} onDelete={carregarDados} />
             </div>
+
+            </>}
 
             <ModalPagamento 
                 isOpen={isModalOpen} 

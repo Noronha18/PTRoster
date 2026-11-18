@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     User, Target, AlertTriangle,
     Dumbbell, DollarSign, Clock, ArrowLeft,
     CheckCircle2, Trash2, Plus, Eye, ChevronDown, ChevronUp, Copy, Edit,
-    ShieldCheck, Zap, BookMarked, CalendarDays
+    ShieldCheck, Zap, BookMarked
 } from 'lucide-react';
 import { alunoService, treinoService } from '../../services/api';
 import { ModalPlanoTreino } from './ModalPlanoTreino';
@@ -42,18 +42,33 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
     const [expandirSessoes, setExpandirSessoes] = useState(false);
     const [expandirPagamentos, setExpandirPagamentos] = useState(false);
     const [aba, setAba] = useState('treinos');
+    const planoDialogRef = useRef(null);
+    const fecharPlanoRef = useRef(null);
 
-    const carregar = async () => {
+    useEffect(() => {
+        if (!planoSelecionado) return;
+        const origem = document.activeElement;
+        const dialog = planoDialogRef.current;
+        dialog.showModal();
+        fecharPlanoRef.current?.focus();
+        return () => {
+            dialog.close();
+            if (origem?.isConnected) origem.focus();
+        };
+    }, [planoSelecionado]);
+
+    const carregar = useCallback(async () => {
         try {
             setLoading(true);
             const data = await alunoService.obterPorId(alunoId);
             setAluno(data);
+            setError(null);
         } catch {
             setError("Falha ao carregar prontuário");
         } finally {
             setLoading(false);
         }
-    };
+    }, [alunoId]);
 
     const handleStatusUpdate = async (novoStatus) => {
         try {
@@ -75,7 +90,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
         }
     };
 
-    useEffect(() => { carregar(); }, [alunoId]);
+    useEffect(() => { carregar(); }, [carregar]);
 
     const handleDeleteAluno = async () => {
         if (confirm(`Tem certeza que deseja EXCLUIR permanentemente o cadastro de ${aluno.nome}? Todos os treinos e históricos serão perdidos.`)) {
@@ -179,6 +194,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
     if (error || !aluno) return (
         <div className="p-10 text-center text-danger bg-danger/5 rounded-xl border border-danger/20">
             <p className="font-bold text-sm uppercase tracking-wide">{error || "Aluno não encontrado"}</p>
+            <button type="button" onClick={carregar} className="mt-4 mr-4 font-semibold underline">Tentar novamente</button>
             <button onClick={onBack} className="mt-4 text-xs font-bold text-text-secondary hover:text-text-primary underline uppercase tracking-widest">Voltar para lista</button>
         </div>
     );
@@ -197,72 +213,24 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                     <ArrowLeft size={14} /> Voltar para lista
                 </button>
 
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                    {aluno.status === 'ativo' && (
-                        <>
-                        <button
-                            onClick={handleCheckIn}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-brand-fg px-4 py-2 rounded-lg transition-all active:scale-95 shadow-sm"
-                        >
-                            <CheckCircle2 size={16} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Check-in</span>
-                        </button>
-                        <button
-                            onClick={() => setIsModalSessaoOpen(true)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-surface hover:bg-overlay text-text-primary border border-border px-4 py-2 rounded-lg transition-all active:scale-95"
-                        >
-                            <Dumbbell size={16} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Registrar Treino</span>
-                        </button>
-                        </>
-                    )}
 
-                    <select
-                        value={aluno.status}
-                        onChange={(e) => handleStatusUpdate(e.target.value)}
-                        aria-label="Status do aluno"
-                        className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border border-border focus:ring-2 focus:ring-brand/10 cursor-pointer outline-none transition-all
-                            ${aluno.status === 'ativo' ? 'bg-brand/10 text-brand' :
-                              aluno.status === 'suspenso' ? 'bg-warning/10 text-warning' :
-                              'bg-danger/10 text-danger'}`}
-                    >
-                        <option value="ativo">Status: Ativo</option>
-                        <option value="suspenso">Status: Suspenso</option>
-                        <option value="cancelado">Status: Cancelado</option>
-                    </select>
-
-                    <div className="flex items-center gap-1">
-                        <button
-                            onClick={() => setIsModalEditOpen(true)}
-                            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-muted hover:text-brand hover:bg-brand/10 rounded-lg transition-colors border border-border"
-                            title="Editar Cadastro"
-                            aria-label="Editar cadastro do aluno"
-                        >
-                            <Edit size={16} />
-                        </button>
-                        <button
-                            onClick={handleDeleteAluno}
-                            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors border border-border"
-                            title="Excluir Aluno"
-                            aria-label="Excluir aluno permanentemente"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    </div>
-                </div>
             </div>
 
             {/* Grid Principal */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
 
                 {/* Coluna 1: Perfil e Anamnese */}
-                <div className="lg:col-span-4 space-y-6">
+                <aside aria-label="Resumo do aluno" className="min-w-0 lg:col-span-4">
                     <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
-                        <div className="flex flex-col items-center text-center mb-8">
-                            <div className="w-20 h-20 rounded-xl bg-surface-raised border border-border flex items-center justify-center mb-4">
-                                <User size={32} className="text-text-muted" />
+                        <div className="flex flex-col items-start mb-5">
+                            <div className="w-12 h-12 rounded-xl bg-surface-raised border border-border flex items-center justify-center mb-3">
+                                <User size={24} className="text-text-muted" />
                             </div>
-                            <h2 className="text-2xl font-bold text-text-primary tracking-tight">{aluno.nome}</h2>
+                            <h1 className="break-words text-2xl font-bold text-text-primary tracking-tight">{aluno.nome}</h1>
+                            <p className="mt-1 text-sm text-text-secondary">
+                                {aluno.modalidade === 'consultoria' ? 'Consultoria' : 'Presencial'}
+                                {aluno.frequencia_semanal_plano > 0 && ` · ${aluno.frequencia_semanal_plano}× por semana`}
+                            </p>
                             <p className="text-text-secondary text-xs font-mono font-bold uppercase tracking-widest mt-1">{aluno.cpf || "CPF não informado"}</p>
 
                             <span className={`mt-3 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border
@@ -291,7 +259,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <p className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
-                                    <Target size={12} className="text-brand" /> Objetivo Estratégico
+                                    <Target size={12} className="text-brand" /> Objetivo
                                 </p>
                                 <div className="bg-overlay p-3 rounded-lg border border-border/60">
                                     <p className="text-xs text-text-primary font-medium leading-relaxed">{aluno.objetivo || "Foco não definido"}</p>
@@ -300,7 +268,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
 
                             <div className="space-y-1.5">
                                 <p className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
-                                    <AlertTriangle size={12} className="text-warning" /> Observações Clínicas
+                                    <AlertTriangle size={12} className="text-warning" /> Restrições e observações
                                 </p>
                                 <div className="bg-overlay p-3 rounded-lg border border-border/60">
                                     <p className="text-xs text-text-primary font-medium leading-relaxed">{aluno.restricoes || "Nenhuma restrição registrada"}</p>
@@ -322,7 +290,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                             <div className="pt-4 border-t border-border grid grid-cols-2 gap-4">
                                 <div className="text-center">
                                     <p className="text-2xs font-bold text-text-muted uppercase tracking-widest mb-1">Membro desde</p>
-                                    <p className="text-xs text-text-primary font-bold font-mono">{new Date(aluno.data_inicio).toLocaleDateString('pt-BR')}</p>
+                                    <p className="text-xs text-text-primary font-bold font-mono">{new Date(aluno.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
                                 </div>
                                 <div className="text-center">
                                     {aluno.modalidade === 'consultoria' ? (
@@ -350,37 +318,90 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                                 </div>
                             </div>
                         </div>
+                        <div className="mt-5">
+                            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                                {aluno.status === 'ativo' && (
+                                    <>
+                                    <button
+                                        onClick={handleCheckIn}
+                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-brand-fg px-4 py-2 rounded-lg transition-all active:scale-95 shadow-sm"
+                                    >
+                                        <CheckCircle2 size={16} />
+                                        <span className="text-xs font-bold ">Registrar presença</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setIsModalSessaoOpen(true)}
+                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-surface hover:bg-overlay text-text-primary border border-border px-4 py-2 rounded-lg transition-all active:scale-95"
+                                    >
+                                        <Dumbbell size={16} />
+                                        <span className="text-xs font-bold ">Registrar treino</span>
+                                    </button>
+                                    </>
+                                )}
+
+                                <select
+                                    value={aluno.status}
+                                    onChange={(e) => handleStatusUpdate(e.target.value)}
+                                    aria-label="Status do aluno"
+                                    className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border border-border focus:ring-2 focus:ring-brand/10 cursor-pointer outline-none transition-all
+                                        ${aluno.status === 'ativo' ? 'bg-brand/10 text-brand' :
+                                          aluno.status === 'suspenso' ? 'bg-warning/10 text-warning' :
+                                          'bg-danger/10 text-danger'}`}
+                                >
+                                    <option value="ativo">Status: Ativo</option>
+                                    <option value="suspenso">Status: Suspenso</option>
+                                    <option value="cancelado">Status: Cancelado</option>
+                                </select>
+
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setIsModalEditOpen(true)}
+                                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-muted hover:text-brand hover:bg-brand/10 rounded-lg transition-colors border border-border"
+                                        title="Editar Cadastro"
+                                        aria-label="Editar cadastro do aluno"
+                                    >
+                                        <Edit size={16} />
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteAluno}
+                                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-colors border border-border"
+                                        title="Excluir Aluno"
+                                        aria-label="Excluir aluno permanentemente"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </aside>
 
-                {/* Coluna 2 e 3: Treinos e Histórico */}
-                <div className="lg:col-span-8 space-y-6">
+                {/* Acompanhamento */}
+                <div className="min-w-0 lg:col-span-8 space-y-6">
 
-                    <div className="flex gap-1 bg-surface border border-border rounded-xl p-1.5 w-fit">
-                        <button
-                            onClick={() => setAba('treinos')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                                aba === 'treinos' ? 'bg-brand text-brand-fg shadow-sm' : 'text-text-muted hover:text-text-secondary'
-                            }`}
-                        >
-                            <Dumbbell size={14} /> Treinos
-                        </button>
-                        <button
-                            onClick={() => setAba('semana')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                                aba === 'semana' ? 'bg-brand text-brand-fg shadow-sm' : 'text-text-muted hover:text-text-secondary'
-                            }`}
-                        >
-                            <CalendarDays size={14} /> Semana
-                        </button>
+                    <div role="group" aria-label="Seções da ficha" className="flex flex-wrap gap-1 rounded-xl border border-border bg-surface p-1.5">
+                        {[
+                            ['treinos', 'Treinos'],
+                            ['semana', 'Esta semana'],
+                            ['evolucao', 'Evolução'],
+                            ['historico', 'Histórico'],
+                            ['financeiro', 'Financeiro'],
+                        ].map(([id, nome]) => (
+                            <button
+                                key={id}
+                                type="button"
+                                aria-pressed={aba === id}
+                                onClick={() => setAba(id)}
+                                className={`min-h-11 rounded-lg px-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-brand ${aba === id ? 'bg-brand text-brand-fg' : 'text-text-secondary hover:bg-overlay'}`}
+                            >
+                                {nome}
+                            </button>
+                        ))}
                     </div>
 
-                    {aba === 'semana' ? (
-                        <SemanaAluno alunoId={alunoId} />
-                    ) : (
-                    <>
+                    {aba === 'semana' && <SemanaAluno alunoId={alunoId} />}
 
-                    {/* Planos de Treino */}
+                    {aba === 'treinos' && (
                     <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-bold text-text-primary tracking-tight flex items-center gap-3">
@@ -388,9 +409,9 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                             </h3>
                             <button
                                 onClick={() => setIsModalPlanoOpen(true)}
-                                className="bg-brand hover:bg-brand-hover text-brand-fg p-2 rounded-lg transition-all shadow-sm active:scale-95"
+                                className="flex min-h-11 items-center gap-2 rounded-lg bg-brand px-3 text-sm font-semibold text-brand-fg hover:bg-brand-hover"
                             >
-                                <Plus size={16} />
+                                <Plus size={16} aria-hidden="true" /> Novo plano
                             </button>
                         </div>
 
@@ -441,24 +462,26 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                         )}
                     </div>
 
-                    {/* key: recarrega a evolução quando entra uma sessão nova */}
-                    <EvolucaoExercicio key={aluno.sessoes?.length ?? 0} alunoId={alunoId} />
+                    )}
 
-                    {/* Histórico */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    {aba === 'evolucao' && (
+                        <EvolucaoExercicio key={aluno.sessoes?.length ?? 0} alunoId={alunoId} />
+                    )}
+
+                    {aba === 'historico' && (
                         <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
                             <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <Clock size={14} className="text-brand" /> Registro de Frequência
+                                <Clock size={14} className="text-brand" /> Histórico de sessões
                             </h3>
                             <div className="space-y-0.5">
-                                {sessoesExibidas?.map(sessao => (
+                                {sessoesExibidas?.length ? sessoesExibidas.map(sessao => (
                                     <div key={sessao.id} className="flex items-center justify-between py-2 border-b border-border-faint last:border-0">
                                         <span className="text-xs text-text-secondary font-bold font-mono uppercase">{new Date(sessao.data_hora).toLocaleDateString('pt-BR')}</span>
                                         <span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded ${sessao.realizada ? "bg-brand/10 text-brand" : "bg-danger/10 text-danger"}`}>
                                             {sessao.realizada ? "Presença" : "Falta"}
                                         </span>
                                     </div>
-                                )) || (
+                                )) : (
                                     <p className="text-xs text-text-muted italic py-4">Sem histórico registrado.</p>
                                 )}
                                 {aluno.sessoes?.length > 3 && (
@@ -472,17 +495,20 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                             </div>
                         </div>
 
+                    )}
+
+                    {aba === 'financeiro' && (
                         <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
                             <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <DollarSign size={14} className="text-brand" /> Histórico Financeiro
                             </h3>
                             <div className="space-y-0.5">
-                                {pagamentosExibidos?.map(pag => (
+                                {pagamentosExibidos?.length ? pagamentosExibidos.map(pag => (
                                     <div key={pag.id} className="flex items-center justify-between py-2 border-b border-border-faint last:border-0">
                                         <span className="text-xs text-text-secondary font-bold uppercase tracking-widest">Ref: {pag.referencia_mes}</span>
                                         <span className="text-xs text-text-primary font-bold font-mono tabular-nums">{new Intl.NumberFormat('pt-BR', {style: 'currency', currency:'BRL'}).format(pag.valor)}</span>
                                     </div>
-                                )) || (
+                                )) : (
                                     <p className="text-xs text-text-muted italic py-4">Sem registros financeiros.</p>
                                 )}
                                 {aluno.pagamentos?.length > 3 && (
@@ -495,9 +521,6 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                                 )}
                             </div>
                         </div>
-                    </div>
-
-                    </>
                     )}
 
                 </div>
@@ -529,13 +552,15 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
 
             {/* Modal de Visualização de Plano */}
             {planoSelecionado && (
-                <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 bg-text-ink/40 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="plano-modal-titulo"
-                        className="bg-canvas w-full max-w-5xl h-[92vh] md:h-[85vh] overflow-hidden rounded-t-xl md:rounded-xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-8 duration-500 border border-border"
-                    >
+                <dialog
+                    ref={planoDialogRef}
+                    aria-labelledby="plano-modal-titulo"
+                    onCancel={(event) => {
+                        event.preventDefault();
+                        setPlanoSelecionado(null);
+                    }}
+                    className="fixed inset-x-0 bottom-0 top-auto mx-auto w-full max-w-5xl h-[92dvh] max-h-none overflow-hidden rounded-t-xl border border-border bg-canvas p-0 shadow-2xl backdrop:bg-text-ink/40 open:flex open:flex-col md:inset-y-0 md:my-auto md:h-[85dvh] md:w-[calc(100%_-_2rem)] md:rounded-xl"
+                >
                         <div className="p-6 sm:p-8 border-b border-border flex justify-between items-start bg-surface">
                             <div>
                                 <h2 id="plano-modal-titulo" className="text-2xl font-bold text-text-primary tracking-tight">{planoSelecionado.titulo}</h2>
@@ -554,6 +579,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                             <button
                                 onClick={() => setPlanoSelecionado(null)}
                                 className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-overlay text-text-muted hover:text-text-primary hover:bg-border rounded-lg transition-all"
+                                ref={fecharPlanoRef}
                                 aria-label="Fechar plano"
                             >
                                 <Plus size={20} className="rotate-45" aria-hidden="true" />
@@ -650,8 +676,7 @@ export const DetalheAluno = ({ alunoId, onBack }) => {
                                 Excluir Plano
                             </button>
                         </div>
-                    </div>
-                </div>
+                </dialog>
             )}
         </div>
     );
