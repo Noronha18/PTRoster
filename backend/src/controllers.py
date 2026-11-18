@@ -617,13 +617,18 @@ async def _validar_series(db: AsyncSession, series: list[schemas.SerieIn], trein
     if existentes != ids_exercicio:
         raise exceptions.BusinessRuleError("Exercício inexistente na série informada.")
 
-    ids_prescricao = {s.prescricao_id for s in series if s.prescricao_id is not None}
-    if ids_prescricao:
-        stmt = select(models.Prescricao.id).where(models.Prescricao.id.in_(ids_prescricao))
-        if treino_id is not None:
-            stmt = stmt.where(models.Prescricao.treino_id == treino_id)
-        if set((await db.scalars(stmt)).all()) != ids_prescricao:
-            raise exceptions.BusinessRuleError("Prescrição não pertence a este treino.")
+    referencias = {(s.prescricao_id, s.exercicio_id) for s in series if s.prescricao_id is not None}
+    if referencias:
+        # Sessões legadas podem ter séries avulsas, mas não têm um treino para validar a prescrição.
+        if treino_id is None:
+            raise exceptions.BusinessRuleError("Sessão sem treino não aceita vínculo com prescrição.")
+        pares = set((await db.execute(
+            select(models.Prescricao.id, models.Prescricao.exercicio_id)
+            .where(models.Prescricao.treino_id == treino_id,
+                   models.Prescricao.id.in_({id_ for id_, _ in referencias}))
+        )).all())
+        if not referencias.issubset(pares):
+            raise exceptions.BusinessRuleError("Prescrição não corresponde ao exercício deste treino.")
 
 
 async def _carregar_execucao(db: AsyncSession, sessao_id: int) -> models.SessaoTreino:
@@ -1106,7 +1111,9 @@ async def atividade_recente(db: AsyncSession, trainer_id: int | None = None, lim
         exercicios = []
         for exercicio_id, nome in nomes.items():
             linha_tempo = historico[(sessao.aluno_id, exercicio_id)]
-            pos = next(i for i, (sid, _) in enumerate(linha_tempo) if sid == sessao.id)
+            pos = next((i for i, (sid, _) in enumerate(linha_tempo) if sid == sessao.id), None)
+            if pos is None:
+                continue
             carga = linha_tempo[pos][1]
             anterior = linha_tempo[pos - 1][1] if pos > 0 else None
             delta = round(carga - anterior, 2) if carga is not None and anterior is not None else None

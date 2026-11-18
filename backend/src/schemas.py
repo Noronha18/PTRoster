@@ -266,11 +266,11 @@ class FrequenciaMensalPublic(BaseModel):
 
 # --- SCHEMAS DE EXECUÇÃO (registro por série) ---
 class SerieIn(BaseModel):
-    exercicio_id: int
-    prescricao_id: Optional[int] = None
-    numero_serie: int = Field(ge=1)
-    repeticoes: int = Field(ge=0)
-    carga_kg: Optional[float] = Field(default=None, ge=0)  # nulo = peso corporal
+    exercicio_id: int = Field(ge=1, le=2**31 - 1)
+    prescricao_id: Optional[int] = Field(default=None, ge=1, le=2**31 - 1)
+    numero_serie: int = Field(ge=1, le=2**31 - 1)
+    repeticoes: int = Field(ge=0, le=2**31 - 1)
+    carga_kg: Optional[float] = Field(default=None, ge=0, le=1_000_000)  # nulo = peso corporal
 
 class SeriePublic(SerieIn):
     id: int

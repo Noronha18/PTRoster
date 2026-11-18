@@ -6,7 +6,10 @@ import { chaveSerie, seriesParaEnvio, valoresIniciais } from './series';
 const hojeISO = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD no fuso do navegador
 
 export default function ModalRegistrarSessao({ alunoId, planos, onClose, onSucesso }) {
-  const treinos = planos?.find(p => p.esta_ativo)?.treinos ?? [];
+  const vigente = planos?.filter(p => p.esta_ativo).sort((a, b) =>
+    b.data_inicio.localeCompare(a.data_inicio) || b.id - a.id,
+  )[0];
+  const treinos = vigente?.treinos ?? [];
   const [data, setData] = useState(hojeISO());
   const [treinoId, setTreinoId] = useState(treinos[0]?.id ?? '');
   const [valores, setValores] = useState({});
@@ -22,7 +25,7 @@ export default function ModalRegistrarSessao({ alunoId, planos, onClose, onSuces
     let ativo = true;
     alunoService.ultimaExecucao(alunoId, treino.id)
       .catch(() => [])
-      .then(ultimas => { if (ativo) setValores(valoresIniciais(treino.prescricoes, ultimas)); });
+      .then(ultimas => { if (ativo) setValores(prev => ({ ...valoresIniciais(treino.prescricoes, ultimas), ...prev })); });
     return () => { ativo = false; };
   }, [alunoId, treino]);
 
@@ -150,7 +153,7 @@ export default function ModalRegistrarSessao({ alunoId, planos, onClose, onSuces
                         <select
                             id="treino-sessao"
                             value={treinoId}
-                            onChange={(e) => setTreinoId(e.target.value)}
+                            onChange={(e) => { setValores({}); setTreinoId(e.target.value); }}
                             className="w-full bg-overlay border border-border rounded-2xl px-5 py-4 text-text-primary font-bold outline-none appearance-none cursor-pointer"
                         >
                             {treinos.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}

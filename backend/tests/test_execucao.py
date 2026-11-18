@@ -392,3 +392,25 @@ async def test_execucao_de_outro_dia_nao_reaproveita_checkin(ac: AsyncClient):
     await ac.post("/sessoes/", json={"aluno_id": aluno_id, "realizada": True, "data_hora": "2026-10-05T10:00:00"})
     await _execucao(ac, treino, [40], aluno_id=aluno_id, data_hora="2026-10-06T10:00:00")
     assert len((await ac.get("/sessoes/", params={"aluno_id": aluno_id})).json()) == 2
+
+
+@pytest.mark.anyio
+async def test_sessao_legada_rejeita_prescricao_de_outro_aluno(ac: AsyncClient):
+    aluno_id = await _criar_aluno(ac)
+    _, outro_treino = await _cenario(ac)
+    sessao = await ac.post("/sessoes/", json={"aluno_id": aluno_id})
+    res = await ac.put(f"/sessoes/{sessao.json()['id']}/series", json={
+        "series": _series(outro_treino["prescricoes"][0], [40]),
+    })
+    assert res.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_serie_rejeita_repeticoes_fora_do_limite_do_banco(ac: AsyncClient):
+    aluno_id, treino = await _cenario(ac)
+    series = _series(treino["prescricoes"][0], [40])
+    series[0]["repeticoes"] = 2**31
+    res = await ac.post("/sessoes/execucao", json={
+        "aluno_id": aluno_id, "treino_id": treino["id"], "series": series,
+    })
+    assert res.status_code == 422
